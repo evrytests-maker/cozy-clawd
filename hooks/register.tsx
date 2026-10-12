@@ -63,8 +63,8 @@ let played = 0
 let lastWait = 0
 let hearts: Heart[] = []
 let cacheLeftMin: number | null = null
-// A press on the context percent switches it to the token count and back.
-let ctxTokens = false
+// Percents a press switched to their detail (the context's tokens, a limit's reset), by meter.
+const flipped: Record<string, boolean> = {}
 let target: Record<string, number> = {}
 const shown: Record<string, number> = {}
 
@@ -358,29 +358,30 @@ export const register: Register = on => {
     }
     const { Box, Text, Button } = $.ui.resolve(e)
 
-    const meter = (label: string, k: string, stops: [number, string][], empty = false) => {
+    // A meter's percent; given `detail`, a switch that shows the detail in its place, and back.
+    const meter = (label: string, k: string, stops: [number, string][], empty = false, detail?: string) => {
       const p = empty ? 0 : v(k)
       const color = empty ? EMPTY : ramp(stops, p / 100)
+      const value = empty ? pct(null) : pct(p)
       return [
         <Text dimColor>{label} </Text>,
         ...lineBar(p, barWidth, color, shimmer).map(r => <Text color={r.fg}>{r.text}</Text>),
-        k === 'ctx' ? (
-          // The context's percent is a switch: the token count in its place, and back.
-          <Button key="ctx" plain onPress={() => {
-            ctxTokens = !ctxTokens
+        detail ? (
+          <Button key={k} plain onPress={() => {
+            flipped[k] = !flipped[k]
             $.ui.invalidate('ui.render')
           }}>
-            <Text color={color} bold>{ctxTokens && s ? ` ${tok(s.contextTokens)}/${tok(s.contextWindow)}` : pct(p)}</Text>
+            <Text color={color} bold>{flipped[k] ? ` ${detail}` : value}</Text>
           </Button>
         ) : (
-          <Text color={color} bold>{empty ? pct(null) : pct(p)}</Text>
+          <Text color={color} bold>{value}</Text>
         ),
       ]
     }
-    const limit = (l: { kind: string; resetsAt?: string }, i: number) => [
-      ...meter(t.limits[l.kind] ?? l.kind, `lim${i}`, LOAD_RAMP),
-      <Text dimColor>{s && resetsIn(l.resetsAt, s.at) ? ` ${resetsIn(l.resetsAt, s.at).replace(' ', '')}` : ''}</Text>,
-    ]
+    const limit = (l: { kind: string; resetsAt?: string }, i: number) => {
+      const resets = s ? resetsIn(l.resetsAt, s.at).replace(' ', '') : ''
+      return meter(t.limits[l.kind] ?? l.kind, `lim${i}`, LOAD_RAMP, false, resets ? `↻${resets}` : undefined)
+    }
 
     const left = cacheLeftMin
     const sep = <Text dimColor> · </Text>
@@ -408,7 +409,7 @@ export const register: Register = on => {
       <Box flexDirection="row" justifyContent="flex-end">
         <Box flexDirection="column" alignItems="flex-end" marginRight={1}>
           <Box flexDirection="row">
-            {meter('ctx', 'ctx', LOAD_RAMP)}
+            {meter('ctx', 'ctx', LOAD_RAMP, false, s ? `${tok(s.contextTokens)}/${tok(s.contextWindow)}` : undefined)}
             <Text>  </Text>
             {meter(t.cache, 'hit', CACHE_RAMP, c.lastHit === null)}
           </Box>

@@ -10,7 +10,7 @@ English · [Русский](README.ru.md)
 
 <img src="assets/hero.svg" alt="The cozy-clawd band: context, cache and limit bars with Clawd dancing beside them">
 
-![version](https://img.shields.io/badge/version-0.0.1--beta-d97757)
+![version](https://img.shields.io/badge/version-0.0.2--beta-d97757)
 ![claude code](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-1f2125)
 ![license](https://img.shields.io/badge/license-MIT-5ad19a)
 
@@ -72,14 +72,14 @@ claude plugin uninstall cozy-clawd@cozy-clawd # remove it
 
 ```
   ctx ━━━─────── 23%  cache ━━━━━━━━━─ 92%
- 5h ━━━━────── 37% 3h23m  7d ━━──────── 17% 4d18h
+   5h ━━━━────── 37%  7d ━━──────── 17%
   Opus 5.5 high · cache 52m left · $0.42 · Clawd: warm
 ```
 
 | Row | What it tells you |
 | --- | --- |
 | 1 | **ctx**: how full the context is, counted against the auto-compact window. Click the percent to see tokens (`48k/1M`), and click again to go back. **cache**: how much of the last request was read from the prompt cache. |
-| 2 | Your **5h** and **7d** subscription limits and when they reset. The row is hidden on an API key. |
+| 2 | Your **5h** and **7d** subscription limits. Click a percent to see when that limit resets (`↻3h23m`), and click again to go back. The row is hidden on an API key. |
 | 3 | Model and reasoning effort, how long the prompt cache has left (one hour on a subscription), spend so far, and `Clawd: warm` while he watches the cache. |
 
 The bars go green → amber → red as they fill (the cache bar runs the other way). Values ease into place, and a shine runs along the bars while Claude is working.
