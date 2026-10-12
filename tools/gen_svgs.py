@@ -26,7 +26,7 @@ def frames(name):
 # name: (sprite, first frame, last frame, fps), the ranges the band plays.
 CLIPS = {
     'dance': ('DancingHappy', 4, 38, 12),
-    'laptop': ('LaptopType', 8, 22, 12),
+    'laptop': ('LaptopType', 8, 24, 12),
     'campfire': ('Campfire', 9, 24, 11),
     'compact': ('Compact', 0, 38, 10),
     'crab': ('CrabWalking', 4, 11, 12),
@@ -135,7 +135,7 @@ GALLERY = [
         ('laptop', 'sets down the laptop'),
         ('type0', 'types, the slowest: under 15 characters a second'),
         ('type1', 'types faster: 15 to 100 a second'),
-        ('type2', 'faster still: 100 to 250 a second, a swing and then two hard clicks, 2 and 3 pixels up'),
+        ('type2', 'faster still: 100 to 250 a second, his usual typing, then two fast hard strikes, 2 and 3 pixels up'),
         ('type3', 'flat out: over 250 a second, keys clicking'),
         ('laptopOut', 'packs the laptop away when the answer is done'),
     ]),

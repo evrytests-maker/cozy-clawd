@@ -82,8 +82,8 @@ HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6
 TYPING = [
     ['low'] * 6 + ['mid', 'low'],              # waiting on the model: a tap now and then
     ['low', 'low', 'mid'],                     # slow
-    ['low', 'mid', 'high', 'mid',              # quick: a swing,
-     'low', 'high', 'low', 'top'],             # then two hard clicks, straight up and down
+    ['low', 'low', 'mid', 'low', 'low', 'mid', # quick: the laptop sprite's own typing,
+     'high', 'low', 'top', 'low'],             # then two hard strikes, a frame up each
     ['reach', 'high', 'low', 'high'],          # flat out
 ]
 
