@@ -102,6 +102,8 @@ Clawd сидит справа от полос и реагирует на то, �
 | <img src="assets/clawd-meditate.svg" height="30"> | кеш протух | медитирует, над ним летят `z` |
 | <img src="assets/clawd-crab.svg" height="30"> | ничего не происходит | оглядывается, машет, ходит крабом, танцует хулу… |
 
+Все 32 его анимации и когда какая играет: [animations/](animations/).
+
 ## Тёплый кеш
 
 <img src="assets/clawd-campfire.svg" height="50" align="right" alt="Clawd греется у костра">

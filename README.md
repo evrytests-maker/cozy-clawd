@@ -100,6 +100,8 @@ Clawd sits to the right of the bars and reacts to what your session is doing.
 | <img src="assets/clawd-meditate.svg" height="30"> | the cache expired | meditates under drifting `z`s |
 | <img src="assets/clawd-crab.svg" height="30"> | nothing going on | looks around, waves, crab-walks, does the hula… |
 
+All 32 of his animations, and when each plays: [animations/](animations/).
+
 ## Keep the cache warm
 
 <img src="assets/clawd-campfire.svg" height="50" align="right" alt="Clawd warming his hands at a campfire">

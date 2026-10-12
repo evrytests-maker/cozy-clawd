@@ -3,7 +3,9 @@ the hero, a mock of the band with Clawd dancing beside it.
 
 Each animation is a strip of frames side by side, slid one frame at a time by a CSS
 `steps()` animation inside a viewBox one frame wide, so GitHub plays it in an <img>.
-usage: python3 -I tools/gen_svgs.py hooks/clawd-anims.ts assets
+Given a third folder, it also draws every clip clawd.ts plays there, with a README
+that shows them all.
+usage: python3 -I tools/gen_svgs.py hooks/clawd-anims.ts assets [animations]
 """
 import json
 import os
@@ -70,6 +72,10 @@ def strip(fs, lo, hi, fps, cls):
 
 def clip_svg(name, scale=10):
     sprite, a, b, fps = CLIPS[name]
+    return range_svg(sprite, a, b, fps, scale)
+
+
+def range_svg(sprite, a, b, fps, scale=10):
     fs = frames(sprite)[a:b + 1]
     lo, hi = bbox(fs)
     css, g, w = strip(fs, lo, hi, fps, 'f')
@@ -123,7 +129,81 @@ def hero_svg():
     )
 
 
+# The gallery, a section a time Clawd plays them in: (title, [(clip, when it plays)]).
+GALLERY = [
+    ('While Claude answers', [
+        ('laptop', 'sets down the laptop'),
+        ('type0', 'types, the slowest: under 15 characters a second'),
+        ('type1', 'types faster: 15 to 100 a second'),
+        ('type2', 'faster still: 100 to 250 a second'),
+        ('type3', 'flat out: over 250 a second, keys clicking'),
+        ('laptopOut', 'packs the laptop away when the answer is done'),
+    ]),
+    ('When an answer is done', [
+        ('dance', '80% or more from the cache, with hearts'),
+        ('excited', '50 to 80% from the cache, or no reading yet'),
+        ('disappointed', 'under 50% from the cache'),
+        ('facepalm', 'a tool call failed'),
+    ]),
+    ('Moods', [
+        ('meditate', 'the cache expired: meditates under drifting z\'s'),
+        ('dizzy', 'context or the 5h limit at 85% or more, sweating'),
+    ]),
+    ('Warm mode', [
+        ('campfire', 'sits down and lights a fire'),
+        ('campfireSit', 'warms his hands, sparks rise'),
+        ('campfireLog', 'tosses a log in now and then'),
+        ('campfireOut', 'the fire dies down, he stands up'),
+    ]),
+    ('Compaction', [
+        ('compact', 'sheets of context drop onto a pile, a press packs them'),
+        ('compactOut', 'a little cube is left, Clawd hops'),
+    ]),
+    ('Idle, one at random every 5 to 13 seconds', [
+        ('idle', 'stands'),
+        ('lookAround', 'looks around'),
+        ('eyes', 'glances about'),
+        ('sway', 'sways'),
+        ('turning', 'turns around'),
+        ('wave', 'waves'),
+        ('hula', 'dances the hula'),
+        ('crab', 'crab-walks'),
+        ('walk', 'walks'),
+        ('run', 'runs on the spot'),
+        ('point', 'points'),
+        ('breakdance', 'breakdances'),
+        ('spark', 'sparkles'),
+        ('jump', 'jumps'),
+    ]),
+]
+
+
+def gallery(dir):
+    """Every clip clawd.ts plays, as an SVG, and a README showing them."""
+    ts = open(os.path.join(os.path.dirname(sys.argv[1]), 'clawd.ts'), encoding='utf-8').read()
+    clips = {m[0]: (m[1], int(m[2]), int(m[3]), int(m[4])) for m in re.findall(
+        r"\n  (\w+): \{ sprite: '(\w+)', from: (\d+), to: (\d+),.*?fps: (\d+)", ts)}
+    listed = [name for _, rows in GALLERY for name, _ in rows]
+    missing = set(clips) - set(listed)
+    assert not missing, f'clips with no place in the gallery: {sorted(missing)}'
+    os.makedirs(dir, exist_ok=True)
+    for name in listed:
+        open(os.path.join(dir, f'{name}.svg'), 'w').write(range_svg(*clips[name]))
+    md = ['# Clawd\'s animations', '',
+          'Every clip Clawd plays on the band, frame by frame as the band draws them. '
+          'Hearts, sparks and other glyphs drawn over him are left out.', '']
+    for title, rows in GALLERY:
+        md += [f'## {title}', '', '| | Clip | When |', '|---|---|---|']
+        md += [f'| <img src="{n}.svg" height="60" alt="{n}"> | `{n}` | {when} |' for n, when in rows]
+        md.append('')
+    md.append('Drawn by `python3 -I tools/gen_svgs.py hooks/clawd-anims.ts assets animations`.')
+    open(os.path.join(dir, 'README.md'), 'w').write('\n'.join(md) + '\n')
+    print('wrote', len(listed), 'svgs and a README to', dir)
+
+
 for name in CLIPS:
     open(os.path.join(out_dir, f'clawd-{name}.svg'), 'w').write(clip_svg(name))
 open(os.path.join(out_dir, 'hero.svg'), 'w').write(hero_svg())
 print('wrote', len(CLIPS) + 1, 'svgs to', out_dir)
+if len(sys.argv) > 3:
+    gallery(sys.argv[3])
