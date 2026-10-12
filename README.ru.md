@@ -94,7 +94,7 @@ Clawd сидит справа от полос и реагирует на то, �
 
 | | Когда | Что делает |
 | --- | --- | --- |
-| <img src="assets/clawd-laptop.svg" height="30"> | Claude отвечает | стучит по ноутбуку: чем быстрее пишет Claude, тем шире размах рук |
+| <img src="assets/clawd-laptop.svg" height="30"> | Claude отвечает | стучит по ноутбуку: спокойные клики, потом быстрее, а на полной скорости бьёт по клавишам из-за головы |
 | <img src="assets/clawd-dance.svg" height="30"> | ответ готов, из кеша ≥ 80% | танцует, летят сердечки |
 | <img src="assets/clawd-facepalm.svg" height="30"> | упал вызов инструмента | фейспалм |
 | <img src="assets/clawd-compact.svg" height="30"> | `/compact` или автосжатие | пресс уминает листы контекста в маленький кубик |

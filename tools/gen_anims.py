@@ -74,17 +74,17 @@ for i in range(15, 35):
         f[y][x] = gray
     out['Laptop'][i] = [''.join(r) for r in f]
 
-# Typing at four speeds, the faster the wider his hand swings: resting on the keys (low),
-# a pixel up (mid), up by his face (high), over his head (top), slammed forward onto the keys (reach).
-# The clips in clawd.ts play TYPING's sheets in this order; each starts and ends low.
+# Typing at four speeds, all on the laptop sprite's own stroke (on the keys, on the keys,
+# a pixel up): resting on the keys (low), a pixel up (mid), up by his face (high), over
+# his head (top). The clips in clawd.ts play TYPING's sheets in this order.
 body, hand = ('abcdefghijklmnopqrstuvwxyz'[palette.index(c)] for c in ('#d97757', '#be684d'))
-HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6)], 'top': [(1, 5), (1, 6)], 'reach': [(4, 4), (4, 5)]}
+HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6)], 'top': [(1, 5), (1, 6)]}
+STROKE = ['low', 'low', 'mid']
 TYPING = [
     ['low'] * 6 + ['mid', 'low'],              # waiting on the model: a tap now and then
-    ['low', 'low', 'mid'],                     # slow
-    ['low', 'low', 'mid', 'low', 'low', 'mid', # quick: the laptop sprite's own typing,
-     'high', 'low', 'top', 'low'],             # then two hard strikes, a frame up each
-    ['reach', 'high', 'low', 'high'],          # flat out
+    STROKE,                                    # calm clicks
+    STROKE,                                    # fast: the same stroke, quicker
+    STROKE * 2 + ['high', 'low', 'top', 'low'],  # fast and hard: strikes to his face and over his head
 ]
 
 

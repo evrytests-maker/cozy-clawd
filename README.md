@@ -92,7 +92,7 @@ Clawd sits to the right of the bars and reacts to what your session is doing.
 
 | | When | What he does |
 | --- | --- | --- |
-| <img src="assets/clawd-laptop.svg" height="30"> | Claude is answering | types away on a laptop: the faster Claude writes, the wider his hands swing |
+| <img src="assets/clawd-laptop.svg" height="30"> | Claude is answering | types away on a laptop: calm clicks, then faster, and flat out he strikes the keys from over his head |
 | <img src="assets/clawd-dance.svg" height="30"> | answer done, ≥ 80% from cache | dances, hearts float up |
 | <img src="assets/clawd-facepalm.svg" height="30"> | a tool call failed | facepalm |
 | <img src="assets/clawd-compact.svg" height="30"> | `/compact` or auto-compact | a press packs pages of context into a tiny cube |

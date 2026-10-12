@@ -7,10 +7,10 @@ Every clip Clawd plays on the band, frame by frame as the band draws them. Heart
 | | Clip | When |
 |---|---|---|
 | <img src="laptop.svg" height="60" alt="laptop"> | `laptop` | sets down the laptop |
-| <img src="type0.svg" height="60" alt="type0"> | `type0` | types, the slowest: under 15 characters a second |
-| <img src="type1.svg" height="60" alt="type1"> | `type1` | types faster: 15 to 100 a second |
-| <img src="type2.svg" height="60" alt="type2"> | `type2` | faster still: 100 to 250 a second, his usual typing, then two fast hard strikes, 2 and 3 pixels up |
-| <img src="type3.svg" height="60" alt="type3"> | `type3` | flat out: over 250 a second, keys clicking |
+| <img src="type0.svg" height="60" alt="type0"> | `type0` | waiting on the model, under 15 characters a second: a tap now and then |
+| <img src="type1.svg" height="60" alt="type1"> | `type1` | calm clicks: 15 to 100 a second |
+| <img src="type2.svg" height="60" alt="type2"> | `type2` | fast typing: 100 to 250 a second |
+| <img src="type3.svg" height="60" alt="type3"> | `type3` | fast and hard, over 250 a second: strikes up to his face and over his head, keys clicking |
 | <img src="laptopOut.svg" height="60" alt="laptopOut"> | `laptopOut` | packs the laptop away when the answer is done |
 
 ## When an answer is done
