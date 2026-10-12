@@ -1,0 +1,13 @@
+{
+  "name": "cozy-clawd",
+  "owner": { "name": "evrytests-maker", "url": "https://github.com/evrytests-maker" },
+  "plugins": [
+    {
+      "name": "cozy-clawd",
+      "source": "./",
+      "version": "0.0.1-beta",
+      "description": "A cozy band above the prompt with an animated Clawd who keeps your prompt cache warm"
+    }
+  ],
+  "description": "cozy-clawd: context, cache and limits at a glance, with an animated Clawd"
+}

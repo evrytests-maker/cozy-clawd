@@ -1,0 +1,26 @@
+# Written by Claude Code when it loads the plugin (API types for the editor)
+.claude-plugin/types/
+
+# Sprite sources and intermediates from tools/
+sprites.json
+*.extracted.js
+
+# Dependencies and caches
+node_modules/
+__pycache__/
+*.py[cod]
+.cache/
+coverage/
+
+# Logs and local env
+*.log
+.env
+.env.*
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

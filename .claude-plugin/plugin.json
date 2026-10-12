@@ -1,0 +1,21 @@
+{
+  "name": "cozy-clawd",
+  "version": "0.0.1-beta",
+  "description": "A cozy band above the Claude Code prompt: context, cache and limits at a glance, with an animated Clawd who keeps your prompt cache warm",
+  "author": {
+    "name": "evrytests-maker",
+    "url": "https://github.com/evrytests-maker"
+  },
+  "homepage": "https://github.com/evrytests-maker/cozy-clawd",
+  "repository": "https://github.com/evrytests-maker/cozy-clawd",
+  "license": "MIT",
+  "keywords": [
+    "clawd",
+    "statusline",
+    "prompt-cache",
+    "context",
+    "rate-limits",
+    "pixel-art"
+  ],
+  "types": "./types/index.d.ts"
+}

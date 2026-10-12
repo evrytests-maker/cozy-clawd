@@ -1,0 +1,108 @@
+<div align="center">
+
+<img src="assets/clawd-wave.svg" height="60" alt="Clawd машет">
+
+# cozy-clawd
+
+**Контекст, кеш и лимиты одним взглядом, прямо над полем ввода Claude Code.<br>И маленький Clawd, который не даёт кешу остыть.**
+
+[English](README.md) · Русский
+
+<img src="assets/hero.svg" alt="Панель cozy-clawd: полосы контекста, кеша и лимитов, рядом танцует Clawd">
+
+![version](https://img.shields.io/badge/version-0.0.1--beta-d97757)
+![claude code](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-1f2125)
+![license](https://img.shields.io/badge/license-MIT-5ad19a)
+
+</div>
+
+## Установка
+
+```
+/plugin install cozy-clawd --marketplace evrytests-maker/cozy-clawd
+```
+
+После этого над полем ввода появится панель. Всё нужное уже лежит в репозитории: ничего настраивать и скачивать не надо.
+
+## Что на панели
+
+```
+  ctx ━━━─────── 23%  cache ━━━━━━━━━─ 92%
+ 5h ━━━━────── 37% 3h23m  7d ━━──────── 17% 4d18h
+  Opus 5.5 high · cache 52m left · $0.42 · Clawd: warm
+```
+
+| Строка | Что показывает |
+| --- | --- |
+| 1 | **ctx** — насколько заполнен контекст, считая от окна автосжатия. Клик по проценту покажет токены (`48k/1M`), ещё один вернёт процент. **cache** — какая доля последнего запроса прочитана из кеша. |
+| 2 | Лимиты подписки **5h** и **7d** и время до их сброса. С API-ключом строки нет. |
+| 3 | Модель и уровень рассуждения, сколько ещё проживёт кеш (на подписке он живёт час), сколько потрачено и `Clawd: warm`, если Clawd следит за кешем. |
+
+Полосы зеленеют, желтеют и краснеют по мере заполнения, у кеша наоборот. Значения плавно доезжают до новых, а пока Claude отвечает, по полосам бежит блик.
+
+Интерфейс панели на английском.
+
+## Знакомься, Clawd
+
+<img src="assets/clawd-dance.svg" height="50" align="right" alt="Clawd танцует">
+
+Clawd сидит справа от полос и реагирует на то, что происходит в сессии.
+
+| | Когда | Что делает |
+| --- | --- | --- |
+| <img src="assets/clawd-laptop.svg" height="30"> | Claude отвечает | стучит по ноутбуку |
+| <img src="assets/clawd-dance.svg" height="30"> | ответ готов, из кеша ≥ 80% | танцует, летят сердечки |
+| <img src="assets/clawd-facepalm.svg" height="30"> | упал вызов инструмента | фейспалм |
+| <img src="assets/clawd-compact.svg" height="30"> | `/compact` или автосжатие | пресс уминает листы контекста в маленький кубик |
+| <img src="assets/clawd-campfire.svg" height="30"> | прогревает кеш | разжигает костёр и греет руки |
+| <img src="assets/clawd-meditate.svg" height="30"> | кеш протух | медитирует, над ним летят `z` |
+| <img src="assets/clawd-crab.svg" height="30"> | ничего не происходит | оглядывается, машет, ходит крабом, танцует хулу… |
+
+## Тёплый кеш
+
+<img src="assets/clawd-campfire.svg" height="50" align="right" alt="Clawd греется у костра">
+
+На подписке кеш промпта живёт час. Если вернуться позже, следующее сообщение заново прочитает весь контекст по полной цене.
+
+**Кликни по Clawd**, и он будет следить за кешем. За 5 минут до конца часа Clawd повторит последний запрос сессии с ответом в один символ. Это чтение из кеша, и час начнётся заново. Подряд он делает так не больше 3 раз, то есть держит кеш около 4 часов простоя, а потом отпускает. Ещё один клик выключает слежку.
+
+Каждый прогрев немного тратит лимиты на чтение кеша. С API-ключом кеш живёт 5 минут, и прогрев там не нужен.
+
+## Полезно знать
+
+- Пустая строка между панелью и линией ввода принадлежит Claude Code: там появляются уведомления вроде `● high · /effort`. Плагин не может в ней рисовать.
+- Кеш считается по основному разговору: у сабагентов кеш свой.
+- Если вместе с ним включён старый плагин `session-meter`, панель рисует он.
+
+## Разработка
+
+<img src="assets/clawd-hula.svg" height="50" align="right" alt="Clawd танцует хулу">
+
+```bash
+git clone https://github.com/evrytests-maker/cozy-clawd
+claude --plugin-dir ./cozy-clawd       # попробовать в сессии
+claude plugin validate ./cozy-clawd
+claude plugin test ./cozy-clawd
+```
+
+| Путь | Что там |
+| --- | --- |
+| `hooks/register.tsx` | панель, слежка за кешем, цикл анимации |
+| `hooks/clawd.ts` | какая анимация когда, сердечки, отрисовка полублоками |
+| `hooks/clawd-anims.ts` | все кадры, генерируется |
+| `tools/extract_sprites.py` | достаёт исходные спрайты в `sprites.json` |
+| `tools/gen_anims.py` | собирает `clawd-anims.ts`; костёр и пресс нарисованы здесь |
+| `tools/gen_svgs.py` | рисует картинки в `assets/` из кадров |
+
+После изменения анимаций:
+
+```bash
+python3 tools/gen_anims.py sprites.json hooks/clawd-anims.ts
+python3 tools/gen_svgs.py hooks/clawd-anims.ts assets
+```
+
+## Лицензия
+
+[MIT](LICENSE)
+
+<div align="center"><img src="assets/clawd-meditate.svg" height="40" alt="Clawd медитирует"></div>
