@@ -75,14 +75,15 @@ for i in range(15, 35):
     out['Laptop'][i] = [''.join(r) for r in f]
 
 # Typing at four speeds, the faster the wider his hand swings: resting on the keys (low),
-# a pixel up (mid), up by his face (high), slammed forward onto the keys (reach).
+# a pixel up (mid), up by his face (high), over his head (top), slammed forward onto the keys (reach).
 # The clips in clawd.ts play TYPING's sheets in this order; each starts and ends low.
 body, hand = ('abcdefghijklmnopqrstuvwxyz'[palette.index(c)] for c in ('#d97757', '#be684d'))
-HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6)], 'reach': [(4, 4), (4, 5)]}
+HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6)], 'top': [(1, 5), (1, 6)], 'reach': [(4, 4), (4, 5)]}
 TYPING = [
     ['low'] * 6 + ['mid', 'low'],              # waiting on the model: a tap now and then
     ['low', 'low', 'mid'],                     # slow
-    ['low', 'mid', 'high', 'mid'],             # quick
+    ['low', 'mid', 'high', 'mid',              # quick: a swing,
+     'low', 'high', 'low', 'top'],             # then two hard clicks, straight up and down
     ['reach', 'high', 'low', 'high'],          # flat out
 ]
 
@@ -92,6 +93,8 @@ def typing(pose):
     for y, x in [(2, 5), (2, 6), (3, 5), (4, 4), (4, 5)]:
         f[y][x] = '.'
     f[3][6] = f[4][6] = body                   # his arm, up to the hand
+    if pose == 'top':
+        f[2][6] = body
     for y, x in HAND[pose]:
         f[y][x] = hand
     return [''.join(r) for r in f]

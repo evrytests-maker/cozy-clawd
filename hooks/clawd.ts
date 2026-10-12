@@ -25,8 +25,8 @@ export const CLIPS: Record<string, Clip> = {
   // Typing, one clip a speed: the faster the model writes, the wider his hand swings.
   type0: { sprite: 'LaptopType', from: 0, to: 7, fps: 8, room: 'Laptop' },
   type1: { sprite: 'LaptopType', from: 8, to: 10, fps: 10, room: 'Laptop' },
-  type2: { sprite: 'LaptopType', from: 11, to: 14, fps: 12, room: 'Laptop' },
-  type3: { sprite: 'LaptopType', from: 15, to: 18, fps: 12, room: 'Laptop' },
+  type2: { sprite: 'LaptopType', from: 11, to: 18, fps: 12, room: 'Laptop' },
+  type3: { sprite: 'LaptopType', from: 19, to: 22, fps: 12, room: 'Laptop' },
   laptopOut: { sprite: 'Laptop', from: 34, to: 42, fps: 16 },
   crab: { sprite: 'CrabWalking', from: 4, to: 11, loop: [4, 11], times: 5, fps: 16, shift: 6 },
   walk: { sprite: 'Walking', from: 4, to: 9, loop: [5, 9], times: 6, fps: 12, shift: 5 },
