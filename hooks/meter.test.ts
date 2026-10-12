@@ -11,7 +11,7 @@ const band = (isWorking: boolean) =>
   }) as const
 
 test('clawd clips follow the session, sprites draw as three rows', () => {
-  const calm = { busy: null, compacting: false, sleepy: false, sweaty: false, reaction: null }
+  const calm = { busy: null, warm: false, compacting: false, sleepy: false, sweaty: false, reaction: null }
   expect(nextClip('idle', { ...calm, busy: 'turn' }, 0)).toBe('laptop')
   expect(nextClip('laptop', calm, 0)).toBe('laptopOut')
   expect(nextClip('laptopOut', { ...calm, reaction: 'dance' }, 0)).toBe('dance')
@@ -21,6 +21,11 @@ test('clawd clips follow the session, sprites draw as three rows', () => {
   // Warming the cache lights a campfire; it dies down once the guard is done.
   expect(nextClip('idle', { ...calm, busy: 'guard' }, 0)).toBe('campfire')
   expect(nextClip('campfire', calm, 0)).toBe('campfireOut')
+  // With warm mode on an idle Clawd mostly goes back to the fire, sometimes does something else.
+  expect(nextClip('idle', { ...calm, warm: true }, 0.1)).toBe('campfire')
+  expect(nextClip('idle', { ...calm, warm: true }, 0.95)).not.toBe('campfire')
+  expect(nextClip('campfireOut', { ...calm, warm: true }, 0.1)).toBe('idle')
+  expect(nextClip('idle', calm, 0.1)).not.toBe('campfire')
   expect(Object.keys(clipGlyphs('campfire', 12, 0))).toEqual(['0,2'])
   expect(Object.keys(clipGlyphs('campfire', 2, 0))).toEqual([])
   // Compaction runs the press even mid-turn, then leaves a packed cube.

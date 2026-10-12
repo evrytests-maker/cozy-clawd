@@ -58,12 +58,17 @@ const IDLE_SHOTS = [
 export type Scene = {
   // What keeps Clawd busy: a model turn (laptop) or the cache guard warming (campfire).
   busy: 'turn' | 'guard' | null
+  // Clawd watches the cache (warm mode on): between other things he sits at the campfire.
+  warm: boolean
   // Any compaction: /compact, auto-compact or the guard's.
   compacting: boolean
   sleepy: boolean
   sweaty: boolean
   reaction: string | null
 }
+
+// How often, with warm mode on, an idle Clawd goes back to the campfire.
+export const WARM_SHARE = 0.7
 
 // The clip after `current` ends (or is interrupted by work starting).
 export function nextClip(current: string, s: Scene, rnd: number): string {
@@ -74,6 +79,11 @@ export function nextClip(current: string, s: Scene, rnd: number): string {
   if (current === 'campfire') return 'campfireOut'
   if (s.reaction) return s.reaction
   if (current !== 'idle') return 'idle'
+  // Watching the cache, he goes back to the fire most times, and now and then does something else.
+  if (s.warm) {
+    if (rnd < WARM_SHARE) return 'campfire'
+    rnd = (rnd - WARM_SHARE) / (1 - WARM_SHARE)
+  }
   if (s.sleepy) return 'meditate'
   if (s.sweaty) return rnd < 0.5 ? 'dizzy' : 'facepalm'
   return IDLE_SHOTS[Math.floor(rnd * IDLE_SHOTS.length)]

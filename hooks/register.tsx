@@ -48,6 +48,8 @@ let working = false
 let guarding = false
 // Whether the guard is warming the cache right now; any compaction sets `compacting`.
 let warming = false
+// Warm mode is on: the campfire is Clawd's home base until it is switched off.
+let warmOn = false
 let compacting = false
 // Tool calls that failed in the current turn: a facepalm afterwards.
 let toolErrors = 0
@@ -142,7 +144,7 @@ function ease() {
 
 function scene(): Scene {
   const sweaty = (target.ctx ?? 0) >= 85 || (target.lim0 ?? 0) >= 85
-  return { busy: working ? 'turn' : warming ? 'guard' : null, compacting, sleepy: cacheLeftMin === 0, sweaty, reaction }
+  return { busy: working ? 'turn' : warming ? 'guard' : null, warm: warmOn, compacting, sleepy: cacheLeftMin === 0, sweaty, reaction }
 }
 
 function play(name: string) {
@@ -152,7 +154,10 @@ function play(name: string) {
   played = 0
   if (name === reaction) reaction = null
   if (name === 'dance' || name === 'excited') hearts = [...hearts, ...spawnHearts(name === 'dance' ? 3 : 2, tick)]
-  if (name === 'idle') idleLeft = 5000 + Math.random() * 8000
+  // With warm mode on he sits at the fire for 3 to 6 loops (~17-35 s) before a break,
+  // and his breaks between clips are short so he gets back to it.
+  if (name === 'campfire' && warmOn) loopsLeft = 3 + Math.floor(Math.random() * 4)
+  if (name === 'idle') idleLeft = warmOn ? 1500 + Math.random() * 2500 : 5000 + Math.random() * 8000
 }
 
 // One step of Clawd: the next frame of the clip, a loop while its reason holds,
@@ -178,13 +183,18 @@ function step(): number {
 // Each loop carries its generation; a newer loop (work just started) retires the older.
 let loop = 0
 
+// The tick the band was last drawn at: while nothing draws it (collapsed, another
+// view, no band at all) Clawd steps once a second instead of at his clip's speed.
+let drawnAt = 0
+const UNDRAWN_TICKS = 30
+
 function animate($: EngineInterface, gen: number) {
   if (gen !== loop) return
   tick += 1
   ease()
   const wait = step()
   $.ui.invalidate('ui.render')
-  $.clock.after(wait, () => animate($, gen))
+  $.clock.after(tick - drawnAt > UNDRAWN_TICKS ? Math.max(wait, 1000) : wait, () => animate($, gen))
 }
 
 // Interrupts the current clip when work starts or a reaction is due.
@@ -326,11 +336,13 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) return next(e)
+    drawnAt = tick
     start($)
 
     const s = await read($, snap)
     const c = await read($, cache)
     const g = await read($, guard)
+    warmOn = g.mode === 'warm'
     if (e.props.isWorking !== working) {
       // A finished turn earns a reaction: hearts for a warm cache, a sigh for a cold one.
       // Failed tool calls earn a facepalm instead.
@@ -354,6 +366,9 @@ export const register: Register = on => {
     const press = async () => {
       const enable = g.mode !== 'warm'
       await update($, guard, (x): Guard => ({ ...x, mode: enable ? 'warm' : 'off' }))
+      warmOn = enable
+      // Switched off, the fire goes out now rather than after its loop.
+      if (!enable && clip === 'campfire' && !warming) play('campfireOut')
       reaction = enable ? 'campfire' : null
       kick($)
     }
