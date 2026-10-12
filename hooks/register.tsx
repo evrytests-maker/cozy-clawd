@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Cache, Guard, Snap } from '../types'
+import type { Cache, Guard, Limit, Snap } from '../types'
 import { BODY_RIGHT, CLIPS, FIRE, clipGlyphs, clipSpan, draw, drawSvg, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import type { Cell, Heart, Scene } from './clawd'
 import { COLS } from './clawd-anims'
@@ -71,25 +71,42 @@ const flipped: Record<string, boolean> = {}
 let target: Record<string, number> = {}
 const shown: Record<string, number> = {}
 
-async function refresh($: EngineInterface) {
+// The auto-compact window and the settings' effort cost a walk over the whole conversation
+// and a settings read, so they are asked for at the start, after a compaction, when the
+// model changes and every WINDOW_MS; the figures in between come from the free call.
+const WINDOW_MS = 10 * 60_000
+let windowFor: { model?: string; at: number; window?: number; settings: object } = { at: -Infinity, settings: {} }
+
+// A limit whose window has reset before any response reported the new one: the engine
+// still has the old reading, but the window is fresh, so it reads 0% with no reset time.
+export function freshLimits(limits: Limit[], now: number): Limit[] {
+  return limits.map(l => (l.resetsAt && Date.parse(l.resetsAt) <= now ? { kind: l.kind, percent: 0 } : l))
+}
+
+async function refresh($: EngineInterface, deep = false) {
   try {
-    // `summary` estimates locally; rawMaxTokens is the effective (auto-compact) window.
-    const u = await $.session.usage({ breakdown: 'summary', columns: 40 })
+    const now = await $.clock.now()
+    const model = await $.session.model().catch(() => undefined)
+    if (deep || model !== windowFor.model || now - windowFor.at >= WINDOW_MS) {
+      // `summary` estimates locally; rawMaxTokens is the effective (auto-compact) window.
+      const full = await $.session.usage({ breakdown: 'summary', columns: 40 })
+      windowFor = { model, at: now, window: full.context.breakdown?.rawMaxTokens, settings: await $.settings.read().catch(() => ({})) }
+    }
+    const u = await $.session.usage()
     const tokens = u.context.tokens ?? 0
-    const window = u.context.breakdown?.rawMaxTokens || u.context.window
+    const window = windowFor.window || u.context.window
     const s: Snap = {
-      at: await $.clock.now(),
+      at: now,
       contextTokens: tokens,
       contextWindow: window,
       contextPercent: window ? Math.min(100, (tokens / window) * 100) : 0,
       usd: u.cost?.usd,
-      model: await $.session.model().catch(() => undefined),
+      model,
       effort: undefined,
-      limits: u.rateLimits.map(r => ({ kind: r.kind, percent: r.percentUsed, resetsAt: r.resetsAt })),
+      limits: freshLimits(u.rateLimits.map(r => ({ kind: r.kind, percent: r.percentUsed, resetsAt: r.resetsAt })), now),
     }
     // The last request's effort stands in when the session names its model differently.
-    s.effort =
-      (s.model && (effortFor[baseModel(s.model)] ?? settingsEffort(await $.settings.read().catch(() => ({})), s.model))) || lastEffort
+    s.effort = (s.model && (effortFor[baseModel(s.model)] ?? settingsEffort(windowFor.settings, s.model))) || lastEffort
     await update($, snap, () => s)
   } catch {
     // Keep the last snapshot; the next step or minute retries.
@@ -165,6 +182,9 @@ const LOG_MIN = 4
 const LOG_MAX = 8
 let logIn = LOG_MIN
 
+const MAX_FPS = 12
+const FRAME_MS = Math.round(1000 / MAX_FPS)
+
 function step(): number {
   const c = CLIPS[clip]
   const atFire = (clip === 'campfire' || clip === 'campfireSit') && (warming || warmOn)
@@ -184,7 +204,8 @@ function step(): number {
   } else play(nextClip(clip, scene(), Math.random()))
   hearts = moveHearts(hearts)
   const easing = Object.keys(target).some(k => shown[k] !== target[k])
-  lastWait = clip === 'idle' ? (hearts.length || easing ? 80 : Math.max(80, idleLeft)) : Math.round(1000 / CLIPS[clip].fps)
+  // At most MAX_FPS redraws a second: each one redraws the band, which in a long chat adds up.
+  lastWait = clip === 'idle' ? (hearts.length || easing ? FRAME_MS : Math.max(FRAME_MS, idleLeft)) : Math.max(FRAME_MS, Math.round(1000 / CLIPS[clip].fps))
   return lastWait
 }
 
@@ -311,6 +332,7 @@ export const register: Register = on => {
     } finally {
       compacting = false
       kick($)
+      void refresh($, true)
     }
   }).catch(($, e, next) => next(e))
 

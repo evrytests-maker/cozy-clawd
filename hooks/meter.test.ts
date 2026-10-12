@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { CLIPS, clipGlyphs, clipLength, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import { COLS } from './clawd-anims'
-import { CACHE_TTL_MS, MAX_WARMS, baseModel, guardDue, lineBar, modelName, pct, ramp, resetsIn, settingsEffort } from './register'
+import { CACHE_TTL_MS, MAX_WARMS, baseModel, freshLimits, guardDue, lineBar, modelName, pct, ramp, resetsIn, settingsEffort } from './register'
 
 const band = (isWorking: boolean) =>
   ({
@@ -219,4 +219,33 @@ test('band labels, model and effort', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: 'Haiku 5.5' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'medium' })).toBeDefined()
   await ui.unmount()
+})
+
+test('a limit past its reset reads 0% until a response reports it', () => {
+  const now = Date.parse('2026-10-12T15:00:00Z')
+  const limits = [
+    { kind: 'five_hour', percent: 91, resetsAt: '2026-10-12T14:10:00Z' },
+    { kind: 'seven_day', percent: 40, resetsAt: '2026-10-16T10:00:00Z' },
+  ]
+  expect(freshLimits(limits, now)).toEqual([{ kind: 'five_hour', percent: 0 }, limits[1]])
+})
+
+test('the costly context breakdown is not asked for on every step', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  let deep = 0
+  let plain = 0
+  on('session.usage', (_$, e) => {
+    if (e?.breakdown) deep += 1
+    else plain += 1
+    return { value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }
+  })
+  on('turn.step', async function* (_$, e) {
+    return {
+      turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const,
+      usage: { model: 'm', input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 9 },
+    }
+  })
+  for (let i = 0; i < 5; i++) for await (const _ of $.turn.step({ turnId: 't', index: i, model: 'm', messageCount: 1 }));
+  expect(plain).toBeGreaterThanOrEqual(5)
+  expect(deep).toBe(1)
 })
