@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 import { CLIPS, clipGlyphs, clipLength, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import { COLS } from './clawd-anims'
-import { CACHE_TTL_MS, MAX_WARMS, baseModel, guardDue, lineBar, settingsEffort, modelName, ramp, resetsIn } from './register'
+import { CACHE_TTL_MS, MAX_WARMS, baseModel, guardDue, lineBar, modelName, pct, ramp, resetsIn, settingsEffort } from './register'
 
 const band = (isWorking: boolean) =>
   ({
@@ -60,6 +60,10 @@ test('clawd clips follow the session, sprites draw as three rows', () => {
   // 50% of 4 cells: two thick, two thin; the shine lights one cell.
   expect(lineBar(50, 4, '#000000').map(r => r.text).join('')).toBe('━━──')
   expect(lineBar(50, 4, '#000000', 1).length).toBe(3)
+  // Percents keep a space from the bar at any value, 100% included.
+  expect(pct(100)).toBe(' 100%')
+  expect(pct(7)).toBe('   7%')
+  expect(pct(null)).toBe('    —')
   expect(ramp([[0, '#000000'], [1, '#ffffff']], 0.5)).toBe('#808080')
   expect(resetsIn('2026-10-12T12:10:00Z', Date.parse('2026-10-12T10:00:00Z'), { d: 'd', h: 'h', m: 'm' })).toBe('2h 10m')
 })
@@ -108,19 +112,19 @@ test('band shows eased stats, cache from main thread only', async ($, on) => {
     const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
     await clock.advance(3000) // let the bars ease in
     // The context shows its percent; a press on it switches to the tokens and back.
-    expect((await ui.find({ key: 'ctx' }))?.text).toBe(' 25%')
+    expect((await ui.find({ key: 'ctx' }))?.text).toBe('  25%')
     await ui.press({ key: 'ctx' })
     expect((await ui.find({ key: 'ctx' }))?.text).toBe(' 128k/512k')
     await ui.press({ key: 'ctx' })
-    expect((await ui.find({ key: 'ctx' }))?.text).toBe(' 25%')
-    expect(await ui.find({ type: 'Text', text: ' 90%' })).toBeDefined()
+    expect((await ui.find({ key: 'ctx' }))?.text).toBe('  25%')
+    expect(await ui.find({ type: 'Text', text: '  90%' })).toBeDefined()
     // A limit shows its percent; a press shows when it resets instead, and back.
-    expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 34%')
+    expect((await ui.find({ key: 'lim0' }))?.text).toBe('  34%')
     expect(await ui.find({ type: 'Text', text: /2h10m/ })).toBeUndefined()
     await ui.press({ key: 'lim0' })
     expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 2h10m')
     await ui.press({ key: 'lim0' })
-    expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 34%')
+    expect((await ui.find({ key: 'lim0' }))?.text).toBe('  34%')
     expect(await ui.find({ type: 'Text', text: 'cache 60m left' })).toBeDefined()
     // A click on Clawd switches the cache guard on and off, shown in the info row only.
     await ui.press({ key: 'clawd1' })

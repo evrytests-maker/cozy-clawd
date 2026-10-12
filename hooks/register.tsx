@@ -260,7 +260,8 @@ export function modelName(id: string) {
 
 const EFFORT_COLORS: Record<string, string> = { low: '#7aa2f7', medium: '#9ece6a', high: '#e8875f', xhigh: '#ff8f5a', max: '#ff6b6b' }
 
-const pct = (p: number | null) => (p === null ? '  —' : `${String(Math.round(p)).padStart(3)}%`)
+// A percent in a fixed five cells, a space before it even at 100%.
+export const pct = (p: number | null) => (p === null ? '    —' : ` ${String(Math.round(p)).padStart(3)}%`)
 const tok = (n: number) => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n))
 
 export function resetsIn(resetsAt: string | undefined, now: number, u = t.units) {
