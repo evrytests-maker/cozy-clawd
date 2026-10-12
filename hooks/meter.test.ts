@@ -249,3 +249,22 @@ test('the costly context breakdown is not asked for on every step', async ($, on
   expect(plain).toBeGreaterThanOrEqual(5)
   expect(deep).toBe(1)
 })
+
+test('the last limits seen are shown before a session has its own', async ($, on) => {
+  mock.clock(on, { now: Date.parse('2026-10-12T10:00:00Z') })
+  mock.store(on)
+  // A fresh session: no response yet, so the engine has no readings.
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
+  const limits = [
+    { kind: 'five_hour', percentUsed: 40, resetsAt: '2026-10-12T12:10:00Z' },
+    { kind: 'seven_day', percentUsed: 28, resetsAt: '2026-10-16T07:00:00Z' },
+  ]
+  on('session.measure', (_$, e) => ({ changed: e.changed }))
+  await $.session.measure({ context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: limits, changed: ['rateLimits'] })
+  const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface: 'terminal', ...band(false) })
+  expect(await ui.find({ type: 'Text', text: '5h ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '7d ' })).toBeDefined()
+  await ui.press({ key: 'lim0' })
+  expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 2h10m')
+  await ui.unmount()
+})

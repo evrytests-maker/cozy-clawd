@@ -13,11 +13,8 @@ export type Snap = {
   limits: Limit[]
 }
 
-// Main-thread prompt-cache counters, in input tokens; lastAt is the last request's time.
+// The main thread's last cache hit rate (percent) and the last request's time.
 export type Cache = {
-  steps: number
-  read: number
-  total: number
   lastHit: number | null
   lastAt: number | null
 }

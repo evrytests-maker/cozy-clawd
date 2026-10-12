@@ -1,19 +1,13 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Cache, Guard, Limit, Snap } from '../types'
+import type { Guard, Limit, Snap } from '../types'
 import { BODY_RIGHT, CLIPS, FIRE, clipGlyphs, clipSpan, draw, drawSvg, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import type { Cell, Heart, Scene } from './clawd'
 import { COLS } from './clawd-anims'
 
 const snap = atom({ plugin: 'cozy-clawd', key: 'snap' } as const, null)
-const cache = atom({ plugin: 'cozy-clawd', key: 'cache' } as const, {
-  steps: 0,
-  read: 0,
-  total: 0,
-  lastHit: null,
-  lastAt: null,
-})
+const cache = atom({ plugin: 'cozy-clawd', key: 'cache' } as const, { lastHit: null, lastAt: null })
 const guard = atom({ plugin: 'cozy-clawd', key: 'guard' } as const, { mode: 'off', warms: 0 })
 
 // Every word the band and its toasts say.
@@ -46,8 +40,7 @@ const CACHE_RAMP: [number, string][] = [[0, '#ff6b6b'], [0.5, '#f2c94c'], [1, '#
 let tick = 0
 let timerStarted = false
 let working = false
-let guarding = false
-// Whether the guard is warming the cache right now; any compaction sets `compacting`.
+// Whether the guard is warming the cache right now.
 let warming = false
 // Warm mode is on: the campfire is Clawd's home base until it is switched off.
 let warmOn = false
@@ -83,6 +76,18 @@ export function freshLimits(limits: Limit[], now: number): Limit[] {
   return limits.map(l => (l.resetsAt && Date.parse(l.resetsAt) <= now ? { kind: l.kind, percent: 0 } : l))
 }
 
+// The 5h/7d readings come with API responses, so a session has none until its first one:
+// the last reading any session saw is kept in the store and shown until then. Readings
+// from other sessions are newer whenever they arrived after this session's last one.
+type Kept = { at: number; limits: Limit[] }
+let ownAt = 0
+
+async function keepLimits($: EngineInterface, limits: Limit[]) {
+  if (!limits.length) return
+  ownAt = await $.clock.now()
+  await $.store.set('limits', { at: ownAt, limits } satisfies Kept).catch(() => {})
+}
+
 async function refresh($: EngineInterface, deep = false) {
   try {
     const now = await $.clock.now()
@@ -93,6 +98,8 @@ async function refresh($: EngineInterface, deep = false) {
       windowFor = { model, at: now, window: full.context.breakdown?.rawMaxTokens, settings: await $.settings.read().catch(() => ({})) }
     }
     const u = await $.session.usage()
+    const own = u.rateLimits.map(r => ({ kind: r.kind, percent: r.percentUsed, resetsAt: r.resetsAt }))
+    const kept = (await $.store.get('limits').catch(() => undefined)) as Kept | undefined
     const tokens = u.context.tokens ?? 0
     const window = windowFor.window || u.context.window
     const s: Snap = {
@@ -103,7 +110,7 @@ async function refresh($: EngineInterface, deep = false) {
       usd: u.cost?.usd,
       model,
       effort: undefined,
-      limits: freshLimits(u.rateLimits.map(r => ({ kind: r.kind, percent: r.percentUsed, resetsAt: r.resetsAt })), now),
+      limits: freshLimits(own.length && (!kept || ownAt >= kept.at) ? own : kept?.limits ?? [], now),
     }
     // The last request's effort stands in when the session names its model differently.
     s.effort = (s.model && (effortFor[baseModel(s.model)] ?? settingsEffort(windowFor.settings, s.model))) || lastEffort
@@ -127,8 +134,8 @@ async function runGuard($: EngineInterface) {
   const c = await read($, cache)
   const g = await read($, guard)
   cacheLeftMin = c.lastAt === null ? null : Math.max(0, Math.ceil((c.lastAt + CACHE_TTL_MS - now) / 60_000))
-  if (!guardDue(g, c.lastAt, now, working || guarding)) return
-  guarding = warming = true
+  if (!guardDue(g, c.lastAt, now, working || warming)) return
+  warming = true
   kick($)
   try {
     // Re-sends the main thread's last request with a tiny tail: a cache read, which restarts the TTL.
@@ -146,7 +153,7 @@ async function runGuard($: EngineInterface) {
   } catch {
     // A turn started meanwhile: the next check retries.
   } finally {
-    guarding = warming = false
+    warming = false
     kick($)
   }
 }
@@ -294,7 +301,7 @@ export function settingsEffort(settings: object, model: string): string | undefi
 // `claude-opus-5-5[1m]` → `Opus 5.5 1M`; a name already pretty stays as it is.
 export function modelName(id: string) {
   const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id)
-  const base = m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id.replace(/\[1m\]/, '')
+  const base = m ? `${m[1]!.charAt(0).toUpperCase()}${m[1]!.slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id.replace(/\[1m\]/, '')
   return /\[1m\]/.test(id) ? `${base} 1M` : base
 }
 
@@ -321,6 +328,13 @@ export const register: Register = on => {
     start($)
     return result
   })
+
+  // A rate-limit window moved (or a turn ended): the band shows it, other sessions too.
+  on('session.measure', async ($, e, next) => {
+    if (e.changed.includes('rateLimits')) await keepLimits($, e.rateLimits.map(r => ({ kind: r.kind, percent: r.percentUsed, resetsAt: r.resetsAt })))
+    void refresh($)
+    return next(e)
+  }).catch(($, e, next) => next(e))
 
   // Any compaction (/compact, auto-compact) runs Clawd's press while it lasts.
   on('session.compact', async ($, e, next) => {
@@ -350,13 +364,7 @@ export const register: Register = on => {
       if (e.effort !== undefined) effortFor[baseModel(e.model)] = lastEffort = String(e.effort)
       const total = u.input_tokens + u.cache_read_input_tokens + u.cache_creation_input_tokens
       const now = await $.clock.now()
-      await update($, cache, c => ({
-        steps: c.steps + 1,
-        read: c.read + u.cache_read_input_tokens,
-        total: c.total + total,
-        lastHit: total ? (u.cache_read_input_tokens / total) * 100 : c.lastHit,
-        lastAt: now,
-      }))
+      await update($, cache, c => ({ lastHit: total ? (u.cache_read_input_tokens / total) * 100 : c.lastHit, lastAt: now }))
       // A new idle stretch starts: the guard may act again.
       await update($, guard, g => ({ ...g, warms: 0 }))
       cacheLeftMin = CACHE_TTL_MS / 60_000
@@ -392,7 +400,7 @@ export const register: Register = on => {
     const v = (k: string) => shown[k] ?? 0
     const cols = e.props.bodyColumns
     const barWidth = cols >= 90 ? 10 : cols >= 70 ? 7 : 4
-    const shimmer = working || guarding ? tick % (barWidth + 4) : -1
+    const shimmer = working || warming ? tick % (barWidth + 4) : -1
     // A click on Clawd switches the cache guard; switched on, he lights a campfire for a moment.
     const press = async () => {
       const enable = g.mode !== 'warm'
@@ -450,12 +458,16 @@ export const register: Register = on => {
     ]
 
     // Glyphs beside the sprite: z's over a meditating Clawd, a drop under load.
+    const sc = scene()
     const glyphs: Record<string, Cell> = clipGlyphs(clip, frameAt, tick)
-    if (clip === 'meditate' || scene().sleepy) {
+    if (clip === 'meditate' || sc.sleepy) {
       const k = Math.floor(tick / 6) % 3
       glyphs[`${2 - k},${BODY_RIGHT + 1 + (k % 2)}`] = { text: k === 2 ? 'Z' : 'z', fg: '#a9b1d6' }
     }
-    if (scene().sweaty && !working) glyphs[`${Math.floor(tick / 4) % 2},${BODY_RIGHT + 1}`] = { text: '˚', fg: '#7cc7ff' }
+    if (sc.sweaty && !working) glyphs[`${Math.floor(tick / 4) % 2},${BODY_RIGHT + 1}`] = { text: '˚', fg: '#7cc7ff' }
+
+    const shift = shiftAt(CLIPS[clip]!, played)
+    const span = clipSpan(clip)
 
     return (
       <Box flexDirection="row" justifyContent="flex-end">
@@ -472,13 +484,10 @@ export const register: Register = on => {
         </Box>
         {Svg ? (
           // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.
-          (() => {
-            const pic = drawSvg(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip]!, played), clipSpan(clip))
-            return <Svg source={pic.svg} alt="Clawd" width={pic.width} height={pic.height} />
-          })()
+          (pic => <Svg source={pic.svg} alt="Clawd" width={pic.width} height={pic.height} />)(drawSvg(clip, frameAt, hearts, glyphs, shift, span))
         ) : (
           <Box flexDirection="column">
-            {draw(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip], played), clipSpan(clip)).map((runs, i) => (
+            {draw(clip, frameAt, hearts, glyphs, shift, span).map((runs, i) => (
               <Button key={`clawd${i}`} plain onPress={press}>
                 {runs.map(r => (
                   <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>

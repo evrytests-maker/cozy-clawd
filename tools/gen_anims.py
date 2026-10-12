@@ -6,13 +6,18 @@ halved by taking the top-left pixel of each 2x2 block aligned to that body box.
 usage: python3 -I gen_anims.py sprites.json out.ts
 """
 import json
+import re
 import sys
 from pathlib import Path
 
 d = json.load(open(sys.argv[1]))
 USE = ['LookingAround', 'LookingAroundEyesOnly', 'Swaying', 'Turning', 'Waving', 'DancingHappy',
        'Excited', 'Disappointed', 'Dizzy', 'Facepalm', 'Meditating', 'Laptop', 'Hula',
-       'CrabWalking', 'Running', 'Walking', 'Pointing', 'Spark', 'Confetti', 'BreakDancing', 'Jumping']
+       'CrabWalking', 'Running', 'Walking', 'Pointing', 'Spark', 'BreakDancing', 'Jumping']
+# Frames past the last one a clip in clawd.ts plays are never drawn: they are left out.
+LAST = {}
+for m in re.finditer(r"sprite: '(\w+)', from: \d+, to: (\d+)", open(Path(sys.argv[2]).with_name('clawd.ts')).read()):
+    LAST[m[1]] = max(LAST.get(m[1], 0), int(m[2]))
 # Full-res canvas: props up to 12px left of the body, 8px right for hearts, 4px headroom.
 LEFT, RIGHT, TOP = 12, 8, 4
 CW, CH = LEFT + 24 + RIGHT, TOP + 16
@@ -44,7 +49,7 @@ for name in USE:
     x0, y0 = s['a0'][0], s['a0'][1]
     mx0 = w - (x0 + 24)  # body box x after mirroring
     frames = []
-    for fr in s['frames']:
+    for fr in s['frames'][:LAST[name] + 1]:
         canvas = [['.'] * CW for _ in range(CH)]
         for i, ch in enumerate(fr):
             if ch == '.':
@@ -58,6 +63,16 @@ for name in USE:
                 canvas[cy][cx] = 'abcdefghijklmnopqrstuvwxyz'[palette.index(color)]
         frames.append([''.join(canvas[y][x] for x in range(0, CW, 2)) for y in range(0, CH, 2)])
     out[name] = squash(frames)
+
+# The laptop bobs a pixel as Clawd types, which halving turns into the laptop flickering
+# between two shapes: hold it still, lid and base, from where it lands to where he lifts
+# it, in front of his hands so they never cover the keyboard.
+gray = 'abcdefghijklmnopqrstuvwxyz'[palette.index('#8b8b8b')]
+for i in range(15, 35):
+    f = [list(r.replace(gray, '.')) for r in out['Laptop'][i]]
+    for y, x in [(4, 3), (5, 4), (5, 5), (5, 6)]:
+        f[y][x] = gray
+    out['Laptop'][i] = [''.join(r) for r in f]
 
 
 

@@ -132,6 +132,16 @@ export function clipSpan(clip: string): [number, number] {
 
 export type Cell = { text: string; fg?: string; bg?: string }
 
+// The glyphs and the hearts still inside the band's `rows` rows, keyed `row,column`.
+function marksOf(hearts: Heart[], glyphs: Record<string, Cell>, rows: number): Record<string, Cell> {
+  const marks: Record<string, Cell> = { ...glyphs }
+  for (const h of hearts) {
+    const row = Math.round(h.y)
+    if (row >= 0 && row < rows) marks[`${row},${h.x}`] = { text: h.y < 0.8 ? '♡' : '♥', fg: HEART_COLOR }
+  }
+  return marks
+}
+
 // One frame, hearts and per-cell glyphs (a 'z', a drop) drawn as rows of terminal
 // cells: '▀' painted with the top pixel, its background the bottom one.
 export function draw(clip: string, frame: number, hearts: Heart[], glyphs: Record<string, Cell> = {}, shift = 0, span: [number, number] = [0, COLS - 1]): Cell[][] {
@@ -140,11 +150,7 @@ export function draw(clip: string, frame: number, hearts: Heart[], glyphs: Recor
   const px: (string | undefined)[][] = rows.map(r =>
     [...(r.slice(shift) + '.'.repeat(shift))].map(ch => (ch === '.' ? undefined : PALETTE[ch.charCodeAt(0) - 97])),
   )
-  const marks: Record<string, Cell> = { ...glyphs }
-  for (const h of hearts) {
-    const row = Math.round(h.y)
-    if (row >= 0 && row < px.length / 2) marks[`${row},${h.x}`] = { text: h.y < 0.8 ? '♡' : '♥', fg: HEART_COLOR }
-  }
+  const marks = marksOf(hearts, glyphs, px.length / 2)
   const out: Cell[][] = []
   for (let y = 0; y < px.length; y += 2) {
     const runs: Cell[] = []
@@ -207,12 +213,7 @@ export function drawSvg(clip: string, frame: number, hearts: Heart[], glyphs: Re
       parts.push(`<rect x="${(x - span[0]) * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="${PALETTE[ch.charCodeAt(0) - 97]}"/>`)
     })
   })
-  const marks: Record<string, Cell> = { ...glyphs }
-  for (const h of hearts) {
-    const row = Math.round(h.y)
-    if (row >= 0 && row < rows.length / 2) marks[`${row},${h.x}`] = { text: h.y < 0.8 ? '♡' : '♥', fg: HEART_COLOR }
-  }
-  for (const [k, m] of Object.entries(marks)) {
+  for (const [k, m] of Object.entries(marksOf(hearts, glyphs, rows.length / 2))) {
     const [row = 0, x = 0] = k.split(',').map(Number)
     if (filled.has(k) || x < span[0] || x > span[1]) continue
     const text = m.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
