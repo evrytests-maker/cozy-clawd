@@ -18,11 +18,55 @@
 
 ## Установка
 
+Нужен [Claude Code](https://docs.claude.com/en/docs/claude-code) версии 2.1.275 или новее (`claude --version`).
+
+**1. Установи.** В сессии Claude Code выполни:
+
 ```
 /plugin install cozy-clawd --marketplace evrytests-maker/cozy-clawd
 ```
 
-После этого над полем ввода появится панель. Всё нужное уже лежит в репозитории: ничего настраивать и скачивать не надо.
+Или из терминала:
+
+```bash
+claude plugin install cozy-clawd --marketplace evrytests-maker/cozy-clawd
+```
+
+**2. Перезапусти Claude Code** (или выполни `/reload-plugins`). Над полем ввода появится панель. Всё уже лежит в репозитории: ничего настраивать и докачивать не надо.
+
+**3. Кликни по Clawd**, если хочешь, чтобы он грел кеш.
+
+<details>
+<summary>Старый Claude Code или по-длинному</summary>
+
+```
+/plugin marketplace add evrytests-maker/cozy-clawd
+/plugin install cozy-clawd@cozy-clawd
+```
+
+</details>
+
+<details>
+<summary>Попробовать без установки</summary>
+
+```bash
+git clone https://github.com/evrytests-maker/cozy-clawd
+claude --plugin-dir ./cozy-clawd
+```
+
+</details>
+
+<details>
+<summary>Обновить, выключить, удалить</summary>
+
+```bash
+claude plugin marketplace update cozy-clawd   # подтянуть свежую версию
+claude plugin update cozy-clawd@cozy-clawd    # потом перезапустить Claude Code
+claude plugin disable cozy-clawd@cozy-clawd   # временно спрятать панель
+claude plugin uninstall cozy-clawd@cozy-clawd # удалить совсем
+```
+
+</details>
 
 ## Что на панели
 

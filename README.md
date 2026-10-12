@@ -18,11 +18,55 @@ English · [Русский](README.ru.md)
 
 ## Install
 
+You need [Claude Code](https://docs.claude.com/en/docs/claude-code) 2.1.275 or newer (`claude --version`).
+
+**1. Install.** Inside a Claude Code session, run:
+
 ```
 /plugin install cozy-clawd --marketplace evrytests-maker/cozy-clawd
 ```
 
-That's it: the band shows up above the prompt. Everything it needs ships in the repo, with no setup step and nothing to download.
+Or from a terminal:
+
+```bash
+claude plugin install cozy-clawd --marketplace evrytests-maker/cozy-clawd
+```
+
+**2. Restart Claude Code** (or run `/reload-plugins`). The band shows up above the prompt. Everything ships in the repo, so there's no setup and nothing else to download.
+
+**3. Click Clawd** if you want him to keep the cache warm.
+
+<details>
+<summary>Older Claude Code, or the long way</summary>
+
+```
+/plugin marketplace add evrytests-maker/cozy-clawd
+/plugin install cozy-clawd@cozy-clawd
+```
+
+</details>
+
+<details>
+<summary>Try it without installing</summary>
+
+```bash
+git clone https://github.com/evrytests-maker/cozy-clawd
+claude --plugin-dir ./cozy-clawd
+```
+
+</details>
+
+<details>
+<summary>Update, turn off, remove</summary>
+
+```bash
+claude plugin marketplace update cozy-clawd   # fetch the latest version
+claude plugin update cozy-clawd@cozy-clawd    # then restart Claude Code
+claude plugin disable cozy-clawd@cozy-clawd   # hide the band for now
+claude plugin uninstall cozy-clawd@cozy-clawd # remove it
+```
+
+</details>
 
 ## What's on the band
 
