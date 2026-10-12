@@ -194,8 +194,8 @@ export function clipGlyphs(clip: string, frame: number, tick: number): Record<st
 // each sprite pixel a 9x9 square, a glyph or heart in its cell (9x18), as the README's pictures.
 export const PX = 9
 export function drawSvg(clip: string, frame: number, hearts: Heart[], glyphs: Record<string, Cell> = {}, shift = 0, span: [number, number] = [0, COLS - 1]): { svg: string; width: number; height: number } {
-  const c = CLIPS[clip]
-  const rows = SPRITES[c.sprite][Math.min(frame, SPRITES[c.sprite].length - 1)]
+  const sprite = SPRITES[CLIPS[clip]?.sprite ?? ''] ?? []
+  const rows = sprite[Math.min(frame, sprite.length - 1)] ?? []
   const width = (span[1] - span[0] + 1) * PX
   const height = rows.length * PX
   const parts: string[] = []
@@ -213,7 +213,7 @@ export function drawSvg(clip: string, frame: number, hearts: Heart[], glyphs: Re
     if (row >= 0 && row < rows.length / 2) marks[`${row},${h.x}`] = { text: h.y < 0.8 ? '♡' : '♥', fg: HEART_COLOR }
   }
   for (const [k, m] of Object.entries(marks)) {
-    const [row, x] = k.split(',').map(Number)
+    const [row = 0, x = 0] = k.split(',').map(Number)
     if (filled.has(k) || x < span[0] || x > span[1]) continue
     const text = m.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
     parts.push(`<text x="${(x - span[0]) * PX + PX / 2}" y="${row * PX * 2 + 14}" fill="${m.fg ?? '#ffffff'}" text-anchor="middle">${text}</text>`)

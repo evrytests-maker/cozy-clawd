@@ -473,7 +473,7 @@ export const register: Register = on => {
         {Svg ? (
           // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.
           (() => {
-            const pic = drawSvg(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip], played), clipSpan(clip))
+            const pic = drawSvg(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip]!, played), clipSpan(clip))
             return <Svg source={pic.svg} alt="Clawd" width={pic.width} height={pic.height} />
           })()
         ) : (

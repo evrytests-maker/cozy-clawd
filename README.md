@@ -117,6 +117,7 @@ Each warm-up costs a small cache read against your limits. On an API key the cac
 - The empty row between the band and the prompt line belongs to Claude Code (it holds notices like `● high · /effort`). A plugin can't draw there.
 - The cache numbers follow the main conversation. Subagents keep caches of their own.
 - If the older `session-meter` plugin is enabled too, it draws the band instead.
+- In the Claude desktop app Clawd is drawn as a picture, which can't be clicked. The cache watch is the `Clawd: off` / `Clawd: warm` button at the end of the third row there.
 
 ## Development
 
