@@ -24,7 +24,7 @@ def frames(name):
 # name: (sprite, first frame, last frame, fps), the ranges the band plays.
 CLIPS = {
     'dance': ('DancingHappy', 4, 38, 12),
-    'laptop': ('Laptop', 17, 33, 12),
+    'laptop': ('LaptopType', 8, 18, 12),
     'campfire': ('Campfire', 9, 24, 11),
     'compact': ('Compact', 0, 38, 10),
     'crab': ('CrabWalking', 4, 11, 12),

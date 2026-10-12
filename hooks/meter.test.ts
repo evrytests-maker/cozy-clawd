@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { CLIPS, clipGlyphs, clipLength, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
+import { CLIPS, clipGlyphs, clipLength, clipSpan, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import { COLS } from './clawd-anims'
 import { CACHE_TTL_MS, MAX_WARMS, baseModel, freshLimits, guardDue, lineBar, modelName, pct, ramp, resetsIn, settingsEffort } from './register'
 
@@ -11,9 +11,17 @@ const band = (isWorking: boolean) =>
   }) as const
 
 test('clawd clips follow the session, sprites draw as three rows', () => {
-  const calm = { busy: null, warm: false, compacting: false, sleepy: false, sweaty: false, reaction: null }
+  const calm = { busy: null, warm: false, compacting: false, sleepy: false, sweaty: false, reaction: null, typing: 0 }
   expect(nextClip('idle', { ...calm, busy: 'turn' }, 0)).toBe('laptop')
+  // Laptop down, he types as fast as the model writes, and switches as it speeds up.
+  expect(nextClip('laptop', { ...calm, busy: 'turn', typing: 2 }, 0)).toBe('type2')
+  expect(nextClip('type2', { ...calm, busy: 'turn', typing: 3 }, 0)).toBe('type3')
+  expect(nextClip('type3', { ...calm, busy: 'turn' }, 0)).toBe('type0')
+  expect(nextClip('type1', calm, 0)).toBe('laptopOut')
   expect(nextClip('laptop', calm, 0)).toBe('laptopOut')
+  // All of his typing takes the laptop's columns, so the band does not jump as he speeds up.
+  for (const k of ['type0', 'type1', 'type2', 'type3']) expect(clipSpan(k)).toEqual(clipSpan('laptop'))
+  expect(Object.keys(clipGlyphs('type3', 15, 0)).length).toBe(1)
   expect(nextClip('laptopOut', { ...calm, reaction: 'dance' }, 0)).toBe('dance')
   expect(nextClip('dance', calm, 0)).toBe('idle')
   expect(nextClip('idle', { ...calm, sleepy: true }, 0)).toBe('meditate')
@@ -267,4 +275,64 @@ test('the last limits seen are shown before a session has its own', async ($, on
   await ui.press({ key: 'lim0' })
   expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 2h10m')
   await ui.unmount()
+})
+
+test('counting how fast the model writes passes its stream on untouched', async ($, on) => {
+  mock.clock(on, { now: 0 })
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
+  const sent = [
+    { kind: 'thinking' as const, index: 0, text: 'hm' },
+    { kind: 'text' as const, index: 1, text: 'Hello' },
+    { kind: 'tool' as const, index: 2, id: 'tu_1', name: 'Read' },
+    { kind: 'input' as const, index: 2, json: '{"file_path":"a"}' },
+  ]
+  on('turn.step', async function* (_$, e) {
+    for (const c of sent) yield c
+    return {
+      turnId: e.turnId, index: e.index, answer: 'Hello', toolUses: [], stopReason: 'end_turn' as const,
+      usage: { model: 'm', input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 9 },
+    }
+  })
+  const got: unknown[] = []
+  const stream = $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1 })
+  let r = await stream.next()
+  for (; !r.done; r = await stream.next()) got.push(r.value)
+  expect(got.map(c => ({ ...(c as object), ref: undefined }))).toEqual(sent.map(c => ({ ...c, ref: undefined })))
+  expect(r.value?.answer).toBe('Hello')
+})
+
+test('typing speeds up with the model, in the terminal and on the desktop', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
+  on('turn.step', async function* (_$, e) {
+    yield { kind: 'text' as const, index: 0, text: 'x'.repeat(40) }
+    return {
+      turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const,
+      usage: { model: 'm', input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 9 },
+    }
+  })
+  // The keys' clicks: a cell of their own in the terminal, a glyph in the desktop's picture.
+  const clicks = async (ui: { find: (q: { type?: string; text?: RegExp }) => Promise<{ props: Record<string, unknown> } | undefined> }, surface: string) =>
+    surface === 'terminal'
+      ? (await ui.find({ type: 'Text', text: /^[˙·]$/ })) !== undefined
+      : /[˙·]<\/text>/.test(String((await ui.find({ type: 'Svg' }))?.props.source ?? ''))
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(true) })
+    await clock.advance(3000) // the laptop goes down; nothing streams yet, so no clicks
+    expect(await clicks(ui, surface)).toBe(false)
+    // About 40 characters every tenth of a second: flat out.
+    let clicked = false
+    for (let i = 0; i < 40; i++) {
+      for await (const _ of $.turn.step({ turnId: 't', index: i, model: 'm', messageCount: 1 }));
+      await clock.advance(100)
+      clicked ||= await clicks(ui, surface)
+    }
+    expect(clicked).toBe(true)
+    await ui.unmount()
+    // The turn ends: he puts the laptop away and the band still draws.
+    const after = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
+    await clock.advance(3000)
+    expect(await after.find({ key: 'ctx' })).toBeDefined()
+    await after.unmount()
+  }
 })

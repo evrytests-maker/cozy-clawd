@@ -74,6 +74,31 @@ for i in range(15, 35):
         f[y][x] = gray
     out['Laptop'][i] = [''.join(r) for r in f]
 
+# Typing at four speeds, the faster the wider his hand swings: resting on the keys (low),
+# a pixel up (mid), up by his face (high), slammed forward onto the keys (reach).
+# The clips in clawd.ts play TYPING's sheets in this order; each starts and ends low.
+body, hand = ('abcdefghijklmnopqrstuvwxyz'[palette.index(c)] for c in ('#d97757', '#be684d'))
+HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6)], 'reach': [(4, 4), (4, 5)]}
+TYPING = [
+    ['low'] * 6 + ['mid', 'low'],              # waiting on the model: a tap now and then
+    ['low', 'low', 'mid'],                     # slow
+    ['low', 'mid', 'high', 'mid'],             # quick
+    ['reach', 'high', 'low', 'high'],          # flat out
+]
+
+
+def typing(pose):
+    f = [list(r) for r in out['Laptop'][17]]
+    for y, x in [(2, 5), (2, 6), (3, 5), (4, 4), (4, 5)]:
+        f[y][x] = '.'
+    f[3][6] = f[4][6] = body                   # his arm, up to the hand
+    for y, x in HAND[pose]:
+        f[y][x] = hand
+    return [''.join(r) for r in f]
+
+
+out['LaptopType'] = [typing(p) for sheet in TYPING for p in sheet]
+
 
 
 # Drawn here, at the band's own scale: props on the 6 free columns left of Clawd. Letters in the art below map to colours.

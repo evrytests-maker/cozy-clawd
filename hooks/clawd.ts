@@ -2,8 +2,9 @@
 import { COLS, PALETTE, SPRITES } from './clawd-anims'
 
 // `times` replays the loop that often unless something holds it; `shift` walks Clawd
-// that many cells left and back over the clip.
-export type Clip = { sprite: string; from: number; to: number; loop?: [number, number]; fps: number; times?: number; shift?: number }
+// that many cells left and back over the clip; `room` is the sprite whose columns it
+// takes, so the band keeps one width while it switches between them.
+export type Clip = { sprite: string; from: number; to: number; loop?: [number, number]; fps: number; times?: number; shift?: number; room?: string }
 
 // Frame ranges as Claude Desktop plays them.
 export const CLIPS: Record<string, Clip> = {
@@ -20,7 +21,12 @@ export const CLIPS: Record<string, Clip> = {
   dizzy: { sprite: 'Dizzy', from: 0, to: 40, fps: 12 },
   facepalm: { sprite: 'Facepalm', from: 2, to: 33, fps: 12 },
   meditate: { sprite: 'Meditating', from: 2, to: 59, fps: 12 },
-  laptop: { sprite: 'Laptop', from: 2, to: 33, loop: [17, 33], fps: 12 },
+  laptop: { sprite: 'Laptop', from: 2, to: 16, fps: 12 },
+  // Typing, one clip a speed: the faster the model writes, the wider his hand swings.
+  type0: { sprite: 'LaptopType', from: 0, to: 7, fps: 8, room: 'Laptop' },
+  type1: { sprite: 'LaptopType', from: 8, to: 10, fps: 10, room: 'Laptop' },
+  type2: { sprite: 'LaptopType', from: 11, to: 14, fps: 12, room: 'Laptop' },
+  type3: { sprite: 'LaptopType', from: 15, to: 18, fps: 12, room: 'Laptop' },
   laptopOut: { sprite: 'Laptop', from: 34, to: 42, fps: 16 },
   crab: { sprite: 'CrabWalking', from: 4, to: 11, loop: [4, 11], times: 5, fps: 16, shift: 6 },
   walk: { sprite: 'Walking', from: 4, to: 9, loop: [5, 9], times: 6, fps: 12, shift: 5 },
@@ -67,20 +73,26 @@ export type Scene = {
   sleepy: boolean
   sweaty: boolean
   reaction: string | null
+  // How fast the model writes, 0 (waiting on it) to 3: which typing clip plays.
+  typing: number
 }
 
 // The clips at the campfire: sitting down, sitting, tossing a log in.
 export const FIRE = ['campfire', 'campfireSit', 'campfireLog']
 
+// Clawd at the laptop: setting it down, then typing at one of four speeds.
+const TYPING = ['type0', 'type1', 'type2', 'type3']
+const AT_LAPTOP = ['laptop', ...TYPING]
+
 // The clip after `current` ends (or is interrupted by work starting).
 export function nextClip(current: string, s: Scene, rnd: number): string {
   if (s.compacting) return 'compact'
   if (current === 'compact') return 'compactOut'
-  if (s.busy === 'turn') return 'laptop'
+  if (s.busy === 'turn') return AT_LAPTOP.includes(current) ? TYPING[Math.max(0, Math.min(3, s.typing))]! : 'laptop'
   // At the fire he stays at the fire while warm mode is on (or the guard is warming).
   if (FIRE.includes(current)) return s.busy === 'guard' || s.warm ? 'campfireSit' : 'campfireOut'
   if (s.busy === 'guard') return 'campfire'
-  if (current === 'laptop') return 'laptopOut'
+  if (AT_LAPTOP.includes(current)) return 'laptopOut'
   if (s.reaction) return s.reaction
   if (current !== 'idle') return 'idle'
   if (s.warm) return 'campfire'
@@ -111,10 +123,11 @@ const spans: Record<string, [number, number]> = {}
 // a laptop, a campfire, a press or a crab walk widen it to the left only while they play.
 export function clipSpan(clip: string): [number, number] {
   const c = CLIPS[clip]
-  if (!spans[c.sprite]) {
+  const room = c.room ?? c.sprite
+  if (!spans[room]) {
     let lo = COLS
     let hi = 0
-    for (const f of SPRITES[c.sprite]) {
+    for (const f of SPRITES[room]) {
       for (const row of f) {
         for (let x = 0; x < row.length; x++) {
           if (row[x] !== '.') {
@@ -124,9 +137,9 @@ export function clipSpan(clip: string): [number, number] {
         }
       }
     }
-    spans[c.sprite] = [lo, hi]
+    spans[room] = [lo, hi]
   }
-  const [lo, hi] = spans[c.sprite]
+  const [lo, hi] = spans[room]
   return [Math.max(0, lo - (c.shift ?? 0)), Math.min(COLS - 1, Math.max(hi, BODY_RIGHT) + 2)]
 }
 
@@ -174,7 +187,7 @@ export function draw(clip: string, frame: number, hearts: Heart[], glyphs: Recor
 
 const SPARKS = ['✦', '✧', '⋆', '·']
 
-// Glyphs a clip throws around itself: sparks over the campfire,
+// Glyphs a clip throws around itself: sparks over the campfire, clicks off the keys,
 // dust when the press slams, a glint on the packed cube, sparks as Clawd sparks.
 export function clipGlyphs(clip: string, frame: number, tick: number): Record<string, Cell> {
   const g: Record<string, Cell> = {}
@@ -186,6 +199,8 @@ export function clipGlyphs(clip: string, frame: number, tick: number): Record<st
     g['2,6'] = { text: tick % 2 ? '·' : '˙', fg: '#8b8b8b' }
     g['2,17'] = { text: tick % 2 ? '˙' : '·', fg: '#8b8b8b' }
   }
+  // Typing flat out, the keys click.
+  if (clip === 'type3') g[`1,${3 + (tick % 2)}`] = { text: tick % 3 ? '˙' : '·', fg: '#cfcabb' }
   if (clip === 'compactOut' && frame >= 2 && frame <= 6) g[`1,${frame % 2 ? 1 : 4}`] = { text: SPARKS[frame % SPARKS.length]!, fg: '#ffd866' }
   if (clip === 'spark') {
     const spots = [[0, 5], [0, 19], [1, 4], [1, 18], [0, 7], [0, 16]]
