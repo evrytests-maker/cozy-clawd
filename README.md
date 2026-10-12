@@ -79,7 +79,7 @@ claude plugin uninstall cozy-clawd@cozy-clawd # remove it
 | Row | What it tells you |
 | --- | --- |
 | 1 | **ctx**: how full the context is, counted against the auto-compact window. Click the percent to see tokens (`48k/1M`), and click again to go back. **cache**: how much of the last request was read from the prompt cache. |
-| 2 | Your **5h** and **7d** subscription limits. Click a percent to see when that limit resets (`↻3h23m`), and click again to go back. The row is hidden on an API key. |
+| 2 | Your **5h** and **7d** subscription limits. Click a percent to see when that limit resets (`3h23m`), and click again to go back. The row is hidden on an API key. |
 | 3 | Model and reasoning effort, how long the prompt cache has left (one hour on a subscription), spend so far, and `Clawd: warm` while he watches the cache. |
 
 The bars go green → amber → red as they fill (the cache bar runs the other way). Values ease into place, and a shine runs along the bars while Claude is working.

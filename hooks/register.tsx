@@ -380,7 +380,7 @@ export const register: Register = on => {
     }
     const limit = (l: { kind: string; resetsAt?: string }, i: number) => {
       const resets = s ? resetsIn(l.resetsAt, s.at).replace(' ', '') : ''
-      return meter(t.limits[l.kind] ?? l.kind, `lim${i}`, LOAD_RAMP, false, resets ? `↻${resets}` : undefined)
+      return meter(t.limits[l.kind] ?? l.kind, `lim${i}`, LOAD_RAMP, false, resets || undefined)
     }
 
     const left = cacheLeftMin
