@@ -107,7 +107,7 @@ def over(base, prop, x0=0):
     return out_rows
 
 
-# Warming: Clawd sits at a campfire and warms his hands, pokes the fire, tosses a log in.
+# Warming: Clawd sits at a campfire, warms his hands and now and then tosses a log in.
 # Drawn in tools/campfire (a 17x12 grid, one cell a pixel here); squashed to six rows by
 # dropping the rows a pose can spare, so the head, the eyes and the hands stay.
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'campfire'))
@@ -142,10 +142,12 @@ def held(frames, ms):
 INTRO_POSES = ['stand', 'crouch', 'sit', 'sit']
 OUTRO_POSES = ['sit', 'sit', 'crouch', 'stand']
 intro = held([(f, p) for (f, _), p in zip(fire_art.INTRO, INTRO_POSES)], [d for _, d in fire_art.INTRO])
-loop = [from_art(f) for f in fire_v2.IDLE + fire_v2.POKE + fire_v2.IDLE + fire_v2.LOG]
-out['Campfire'] = intro + loop
+# Sitting by the fire warming his hands loops; tossing a log in is its own sprite, which
+# the band plays between those loops now and then.
+out['Campfire'] = intro + [from_art(f) for f in fire_v2.IDLE]
+out['CampfireLog'] = [from_art(f) for f in fire_v2.LOG]
 out['CampfireOut'] = held([(f, p) for (f, _), p in zip(fire_art.OUTRO, OUTRO_POSES)], [d for _, d in fire_art.OUTRO])
-print('campfire: intro', len(intro), 'loop', len(loop), 'out', len(out['CampfireOut']))
+print('campfire: intro', len(intro), 'loop', len(fire_v2.IDLE), 'log', len(fire_v2.LOG), 'out', len(out['CampfireOut']))
 
 
 # Compaction: sheets of context drop onto a pile, a press slams it into a block and lifts.

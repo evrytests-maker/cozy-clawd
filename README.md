@@ -10,7 +10,7 @@ English · [Русский](README.ru.md)
 
 <img src="assets/hero.svg" alt="The cozy-clawd band: context, cache and limit bars with Clawd dancing beside them">
 
-![version](https://img.shields.io/badge/version-0.0.6--beta-d97757)
+![version](https://img.shields.io/badge/version-0.0.7--beta-d97757)
 ![claude code](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-1f2125)
 ![license](https://img.shields.io/badge/license-MIT-5ad19a)
 
@@ -96,7 +96,7 @@ Clawd sits to the right of the bars and reacts to what your session is doing.
 | <img src="assets/clawd-dance.svg" height="30"> | answer done, ≥ 80% from cache | dances, hearts float up |
 | <img src="assets/clawd-facepalm.svg" height="30"> | a tool call failed | facepalm |
 | <img src="assets/clawd-compact.svg" height="30"> | `/compact` or auto-compact | a press packs pages of context into a tiny cube |
-| <img src="assets/clawd-campfire.svg" height="30"> | warming the cache | sits by a campfire, warms his hands, pokes the fire, tosses a log in |
+| <img src="assets/clawd-campfire.svg" height="30"> | warming the cache | sits by a campfire, warms his hands, tosses a log in now and then |
 | <img src="assets/clawd-meditate.svg" height="30"> | the cache expired | meditates under drifting `z`s |
 | <img src="assets/clawd-crab.svg" height="30"> | nothing going on | looks around, waves, crab-walks, does the hula… |
 
@@ -108,7 +108,7 @@ On a subscription the prompt cache lives for an hour. Come back later and the ne
 
 **Click Clawd** to let him watch it. Five minutes before the cache runs out he replays the session's last request with a one-character reply. That counts as a cache read, so the hour starts again. He does this at most 3 times in a row (about 4 hours away from the keyboard), then lets it go. Click him again to stop.
 
-While he watches, Clawd sits by the campfire: he warms his hands, pokes the fire, tosses a log in. Now and then he gets up to stretch his legs and then comes back to the fire. Click him again and the fire goes out.
+While he watches, Clawd sits by the campfire the whole time: he warms his hands and every few seconds tosses a log in, and the flame flares up. He only leaves it to type on the laptop while Claude answers. Click him again and the fire goes out.
 
 Each warm-up costs a small cache read against your limits. On an API key the cache lives 5 minutes, so you won't need it there.
 

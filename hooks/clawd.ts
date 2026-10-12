@@ -33,9 +33,11 @@ export const CLIPS: Record<string, Clip> = {
   // then the pile is a little cube and Clawd hops.
   compact: { sprite: 'Compact', from: 0, to: 38, loop: [20, 38], fps: 10 },
   compactOut: { sprite: 'CompactOut', from: 0, to: 7, fps: 8 },
-  // Warming the cache: Clawd sits down by a campfire, warms his hands, pokes the fire and
-  // tosses a log in (a loop of 64), then the fire dies down and he stands up.
-  campfire: { sprite: 'Campfire', from: 0, to: 72, loop: [9, 72], fps: 11 },
+  // Warm mode: Clawd sits down by a campfire and warms his hands for as long as it is on,
+  // tossing a log in now and then; then the fire dies down and he stands up.
+  campfire: { sprite: 'Campfire', from: 0, to: 24, loop: [9, 24], fps: 11 },
+  campfireSit: { sprite: 'Campfire', from: 9, to: 24, loop: [9, 24], fps: 11 },
+  campfireLog: { sprite: 'CampfireLog', from: 0, to: 15, fps: 11 },
   campfireOut: { sprite: 'CampfireOut', from: 0, to: 11, fps: 11 },
 }
 
@@ -58,7 +60,7 @@ const IDLE_SHOTS = [
 export type Scene = {
   // What keeps Clawd busy: a model turn (laptop) or the cache guard warming (campfire).
   busy: 'turn' | 'guard' | null
-  // Clawd watches the cache (warm mode on): between other things he sits at the campfire.
+  // Clawd watches the cache (warm mode on): idle, he sits at the campfire.
   warm: boolean
   // Any compaction: /compact, auto-compact or the guard's.
   compacting: boolean
@@ -67,23 +69,21 @@ export type Scene = {
   reaction: string | null
 }
 
-// How often, with warm mode on, an idle Clawd goes back to the campfire.
-export const WARM_SHARE = 0.7
+// The clips at the campfire: sitting down, sitting, tossing a log in.
+export const FIRE = ['campfire', 'campfireSit', 'campfireLog']
 
 // The clip after `current` ends (or is interrupted by work starting).
 export function nextClip(current: string, s: Scene, rnd: number): string {
   if (s.compacting) return 'compact'
   if (current === 'compact') return 'compactOut'
-  if (s.busy) return s.busy === 'turn' ? 'laptop' : 'campfire'
+  if (s.busy === 'turn') return 'laptop'
+  // At the fire he stays at the fire while warm mode is on (or the guard is warming).
+  if (FIRE.includes(current)) return s.busy === 'guard' || s.warm ? 'campfireSit' : 'campfireOut'
+  if (s.busy === 'guard') return 'campfire'
   if (current === 'laptop') return 'laptopOut'
-  if (current === 'campfire') return 'campfireOut'
   if (s.reaction) return s.reaction
   if (current !== 'idle') return 'idle'
-  // Watching the cache, he goes back to the fire most times, and now and then does something else.
-  if (s.warm) {
-    if (rnd < WARM_SHARE) return 'campfire'
-    rnd = (rnd - WARM_SHARE) / (1 - WARM_SHARE)
-  }
+  if (s.warm) return 'campfire'
   if (s.sleepy) return 'meditate'
   if (s.sweaty) return rnd < 0.5 ? 'dizzy' : 'facepalm'
   return IDLE_SHOTS[Math.floor(rnd * IDLE_SHOTS.length)]
@@ -172,7 +172,7 @@ const SPARKS = ['✦', '✧', '⋆', '·']
 // dust when the press slams, a glint on the packed cube, sparks as Clawd sparks.
 export function clipGlyphs(clip: string, frame: number, tick: number): Record<string, Cell> {
   const g: Record<string, Cell> = {}
-  if (clip === 'campfire' && frame >= CLIPS.campfire!.loop![0]) {
+  if ((clip === 'campfire' && frame >= CLIPS.campfire!.loop![0]) || clip === 'campfireSit' || clip === 'campfireLog') {
     g[`0,${tick % 4 < 2 ? 2 : 4}`] = { text: tick % 3 ? '˙' : '·', fg: '#f2c94c' }
   }
   // Clawd's head row empty: the frame where he and the press come down.

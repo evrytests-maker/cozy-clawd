@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Cache, Guard, Snap } from '../types'
-import { BODY_RIGHT, CLIPS, clipGlyphs, clipSpan, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
+import { BODY_RIGHT, CLIPS, FIRE, clipGlyphs, clipSpan, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import type { Cell, Heart, Scene } from './clawd'
 import { COLS } from './clawd-anims'
 
@@ -154,23 +154,30 @@ function play(name: string) {
   played = 0
   if (name === reaction) reaction = null
   if (name === 'dance' || name === 'excited') hearts = [...hearts, ...spawnHearts(name === 'dance' ? 3 : 2, tick)]
-  // With warm mode on he sits at the fire for 3 to 6 loops (~17-35 s) before a break,
-  // and his breaks between clips are short so he gets back to it.
-  if (name === 'campfire' && warmOn) loopsLeft = 3 + Math.floor(Math.random() * 4)
-  if (name === 'idle') idleLeft = warmOn ? 1500 + Math.random() * 2500 : 5000 + Math.random() * 8000
+  if (name === 'idle') idleLeft = warmOn ? 300 : 5000 + Math.random() * 8000
 }
 
 // One step of Clawd: the next frame of the clip, a loop while its reason holds,
 // or the next clip. Returns how long until the next step.
+// Loops of warming his hands (1.5 s each) between two logs: 4 to 8, so 6 to 12 s.
+const LOG_MIN = 4
+const LOG_MAX = 8
+let logIn = LOG_MIN
+
 function step(): number {
   const c = CLIPS[clip]
-  const holds = (clip === 'laptop' && working) || (clip === 'campfire' && warming) || (clip === 'compact' && compacting)
+  const atFire = (clip === 'campfire' || clip === 'campfireSit') && (warming || warmOn)
+  const holds = (clip === 'laptop' && working) || atFire || (clip === 'compact' && compacting)
   played += 1
   if (clip === 'idle') {
     idleLeft -= lastWait
     if (idleLeft <= 0) play(nextClip(clip, scene(), Math.random()))
   } else if (frameAt < c.to) frameAt += 1
-  else if (c.loop && (holds || loopsLeft > 0)) {
+  else if (atFire && --logIn <= 0) {
+    // Every few loops at the fire he tosses a log in; the flame flares up.
+    logIn = LOG_MIN + Math.floor(Math.random() * (LOG_MAX - LOG_MIN + 1))
+    play('campfireLog')
+  } else if (c.loop && (holds || loopsLeft > 0)) {
     frameAt = c.loop[0]
     if (!holds) loopsLeft -= 1
   } else play(nextClip(clip, scene(), Math.random()))
@@ -201,7 +208,8 @@ function animate($: EngineInterface, gen: number) {
 function kick($: EngineInterface) {
   const s = scene()
   const want = s.busy || s.compacting ? nextClip(clip, s, 0) : null
-  if (want && clip !== want) play(want)
+  // Already at the fire, the guard starting to warm keeps him there rather than sitting him down again.
+  if (want && clip !== want && !(FIRE.includes(clip) && FIRE.includes(want))) play(want)
   else if (!s.busy && clip === 'idle' && reaction) play(reaction)
   loop += 1
   animate($, loop)
@@ -368,8 +376,8 @@ export const register: Register = on => {
       await update($, guard, (x): Guard => ({ ...x, mode: enable ? 'warm' : 'off' }))
       warmOn = enable
       // Switched off, the fire goes out now rather than after its loop.
-      if (!enable && clip === 'campfire' && !warming) play('campfireOut')
-      reaction = enable ? 'campfire' : null
+      if (!enable && FIRE.includes(clip) && !warming) play('campfireOut')
+      reaction = enable && !FIRE.includes(clip) ? 'campfire' : null
       kick($)
     }
     const { Box, Text, Button } = $.ui.resolve(e)

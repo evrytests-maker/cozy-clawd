@@ -21,10 +21,12 @@ test('clawd clips follow the session, sprites draw as three rows', () => {
   // Warming the cache lights a campfire; it dies down once the guard is done.
   expect(nextClip('idle', { ...calm, busy: 'guard' }, 0)).toBe('campfire')
   expect(nextClip('campfire', calm, 0)).toBe('campfireOut')
-  // With warm mode on an idle Clawd mostly goes back to the fire, sometimes does something else.
-  expect(nextClip('idle', { ...calm, warm: true }, 0.1)).toBe('campfire')
-  expect(nextClip('idle', { ...calm, warm: true }, 0.95)).not.toBe('campfire')
-  expect(nextClip('campfireOut', { ...calm, warm: true }, 0.1)).toBe('idle')
+  // With warm mode on an idle Clawd goes to the fire and stays there: no other clips.
+  for (const rnd of [0, 0.5, 0.99]) expect(nextClip('idle', { ...calm, warm: true }, rnd)).toBe('campfire')
+  expect(nextClip('campfire', { ...calm, warm: true }, 0.5)).toBe('campfireSit')
+  expect(nextClip('campfireLog', { ...calm, warm: true }, 0.5)).toBe('campfireSit')
+  expect(nextClip('campfireLog', calm, 0.5)).toBe('campfireOut')
+  expect(nextClip('campfireSit', { ...calm, warm: true, busy: 'turn' }, 0)).toBe('laptop')
   expect(nextClip('idle', calm, 0.1)).not.toBe('campfire')
   expect(Object.keys(clipGlyphs('campfire', 12, 0))).toEqual(['0,2'])
   expect(Object.keys(clipGlyphs('campfire', 2, 0))).toEqual([])
