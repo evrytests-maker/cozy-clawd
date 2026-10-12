@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Cache, Guard, Snap } from '../types'
-import { BODY_RIGHT, CLIPS, clipGlyphs, clipSpan, draw, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
+import { BODY_RIGHT, CLIPS, clipGlyphs, clipSpan, draw, drawSvg, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import type { Cell, Heart, Scene } from './clawd'
 import { COLS } from './clawd-anims'
 
@@ -24,6 +24,7 @@ export const t = {
   cacheLeft: (m: number) => `cache ${m}m left`,
   cacheAsleep: 'cache expired',
   guard: 'Clawd: warm',
+  guardOff: 'Clawd: off',
   warmPrompt: 'Reply with one character: .',
   warmed: (k: number) => `Clawd warmed the cache (${k}k read from cache)`,
   warmFailed: (why: string) => `Clawd could not warm the cache: ${why}`,
@@ -372,7 +373,10 @@ export const register: Register = on => {
       reaction = enable ? 'campfire' : null
       kick($)
     }
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const els = $.ui.resolve(e)
+    const { Box, Text, Button } = els
+    const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
+    const desktop = Svg !== undefined
 
     // A meter's percent; given `detail`, a switch that shows the detail in its place, and back.
     const meter = (label: string, k: string, stops: [number, string][], empty = false, detail?: string) => {
@@ -409,7 +413,10 @@ export const register: Register = on => {
         ? []
         : [...(s?.model || s?.effort ? [sep] : []), <Text color={left === 0 ? 'error' : left <= 5 ? 'warning' : undefined} dimColor={left > 5}>{left ? t.cacheLeft(left) : t.cacheAsleep}</Text>]),
       ...(s?.usd !== undefined && s.usd >= 0.005 ? [sep, <Text color="#5fb8ff" bold>{`$${s.usd.toFixed(2)}`}</Text>] : []),
-      ...(g.mode === 'warm' ? [sep, <Text color={GUARD_CHIP}>{t.guard}</Text>] : []),
+      // A desktop cannot press Clawd (see below): the guard gets a button of its own there.
+      ...(desktop
+        ? [sep, <Button key="guard" plain onPress={press}>{g.mode === 'warm' ? t.guard : t.guardOff}</Button>]
+        : g.mode === 'warm' ? [sep, <Text color={GUARD_CHIP}>{t.guard}</Text>] : []),
     ]
 
     // Glyphs beside the sprite: z's over a meditating Clawd, a drop under load.
@@ -419,7 +426,6 @@ export const register: Register = on => {
       glyphs[`${2 - k},${BODY_RIGHT + 1 + (k % 2)}`] = { text: k === 2 ? 'Z' : 'z', fg: '#a9b1d6' }
     }
     if (scene().sweaty && !working) glyphs[`${Math.floor(tick / 4) % 2},${BODY_RIGHT + 1}`] = { text: '˚', fg: '#7cc7ff' }
-    const sprite = draw(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip], played), clipSpan(clip))
 
     return (
       <Box flexDirection="row" justifyContent="flex-end">
@@ -434,15 +440,23 @@ export const register: Register = on => {
           </Box>
           <Box flexDirection="row">{info}</Box>
         </Box>
-        <Box flexDirection="column">
-          {sprite.map((runs, i) => (
-            <Button key={`clawd${i}`} plain onPress={press}>
-              {runs.map(r => (
-                <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>
-              ))}
-            </Button>
-          ))}
-        </Box>
+        {Svg ? (
+          // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.
+          (() => {
+            const pic = drawSvg(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip], played), clipSpan(clip))
+            return <Svg source={pic.svg} alt="Clawd" width={pic.width} height={pic.height} />
+          })()
+        ) : (
+          <Box flexDirection="column">
+            {draw(clip, frameAt, hearts, glyphs, shiftAt(CLIPS[clip], played), clipSpan(clip)).map((runs, i) => (
+              <Button key={`clawd${i}`} plain onPress={press}>
+                {runs.map(r => (
+                  <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>
+                ))}
+              </Button>
+            ))}
+          </Box>
+        )}
       </Box>
     )
   })
