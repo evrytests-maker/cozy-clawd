@@ -24,3 +24,6 @@ coverage/
 *~
 .DS_Store
 Thumbs.db
+
+# Local working files: sprite sources, previews, sprites found online
+dev/
