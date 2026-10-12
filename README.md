@@ -10,7 +10,7 @@ English · [Русский](README.ru.md)
 
 <img src="assets/hero.svg" alt="The cozy-clawd band: context, cache and limit bars with Clawd dancing beside them">
 
-![version](https://img.shields.io/badge/version-0.0.2--beta-d97757)
+![version](https://img.shields.io/badge/version-0.0.3--beta-d97757)
 ![claude code](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-1f2125)
 ![license](https://img.shields.io/badge/license-MIT-5ad19a)
 
