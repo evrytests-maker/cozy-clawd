@@ -189,3 +189,37 @@ export function clipGlyphs(clip: string, frame: number, tick: number): Record<st
   }
   return g
 }
+
+// The same frame as an SVG for surfaces that draw text in their own font (a desktop):
+// each sprite pixel a 9x9 square, a glyph or heart in its cell (9x18), as the README's pictures.
+export const PX = 9
+export function drawSvg(clip: string, frame: number, hearts: Heart[], glyphs: Record<string, Cell> = {}, shift = 0, span: [number, number] = [0, COLS - 1]): { svg: string; width: number; height: number } {
+  const c = CLIPS[clip]
+  const rows = SPRITES[c.sprite][Math.min(frame, SPRITES[c.sprite].length - 1)]
+  const width = (span[1] - span[0] + 1) * PX
+  const height = rows.length * PX
+  const parts: string[] = []
+  const filled = new Set<string>()
+  rows.forEach((r, y) => {
+    ;[...(r.slice(shift) + '.'.repeat(shift))].forEach((ch, x) => {
+      if (ch === '.' || x < span[0] || x > span[1]) return
+      filled.add(`${Math.floor(y / 2)},${x}`)
+      parts.push(`<rect x="${(x - span[0]) * PX}" y="${y * PX}" width="${PX}" height="${PX}" fill="${PALETTE[ch.charCodeAt(0) - 97]}"/>`)
+    })
+  })
+  const marks: Record<string, Cell> = { ...glyphs }
+  for (const h of hearts) {
+    const row = Math.round(h.y)
+    if (row >= 0 && row < rows.length / 2) marks[`${row},${h.x}`] = { text: h.y < 0.8 ? '♡' : '♥', fg: HEART_COLOR }
+  }
+  for (const [k, m] of Object.entries(marks)) {
+    const [row, x] = k.split(',').map(Number)
+    if (filled.has(k) || x < span[0] || x > span[1]) continue
+    const text = m.text.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    parts.push(`<text x="${(x - span[0]) * PX + PX / 2}" y="${row * PX * 2 + 14}" fill="${m.fg ?? '#ffffff'}" text-anchor="middle">${text}</text>`)
+  }
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
+    `<style>rect{shape-rendering:crispEdges}text{font:14px ui-monospace,Menlo,Consolas,monospace}</style>${parts.join('')}</svg>`
+  return { svg, width, height }
+}

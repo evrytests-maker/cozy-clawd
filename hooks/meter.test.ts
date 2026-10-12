@@ -134,11 +134,21 @@ test('band shows eased stats, cache from main thread only', async ($, on) => {
     await ui.press({ key: 'lim0' })
     expect((await ui.find({ key: 'lim0' }))?.text).toBe('  34%')
     expect(await ui.find({ type: 'Text', text: 'cache 60m left' })).toBeDefined()
-    // A click on Clawd switches the cache guard on and off, shown in the info row only.
-    await ui.press({ key: 'clawd1' })
-    expect(await ui.find({ type: 'Text', text: 'Clawd: warm' })).toBeDefined()
-    await ui.press({ key: 'clawd0' })
-    expect(await ui.find({ type: 'Text', text: 'Clawd: warm' })).toBeUndefined()
+    if (surface === 'desktop') {
+      // Clawd is plain Text there; the guard's own button switches it.
+      expect(await ui.find({ key: 'clawd0' })).toBeUndefined()
+      expect((await ui.find({ key: 'guard' }))?.text).toBe('Clawd: off')
+      await ui.press({ key: 'guard' })
+      expect((await ui.find({ key: 'guard' }))?.text).toBe('Clawd: warm')
+      await ui.press({ key: 'guard' })
+      expect((await ui.find({ key: 'guard' }))?.text).toBe('Clawd: off')
+    } else {
+      // A click on Clawd switches the cache guard on and off, shown in the info row only.
+      await ui.press({ key: 'clawd1' })
+      expect(await ui.find({ type: 'Text', text: 'Clawd: warm' })).toBeDefined()
+      await ui.press({ key: 'clawd0' })
+      expect(await ui.find({ type: 'Text', text: 'Clawd: warm' })).toBeUndefined()
+    }
     expect(toasts).toEqual([])
     await ui.unmount()
   }
