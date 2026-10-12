@@ -1,6 +1,6 @@
 {
   "name": "cozy-clawd",
-  "version": "0.0.4-beta",
+  "version": "0.0.5-beta",
   "description": "A cozy band above the Claude Code prompt: context, cache and limits at a glance, with an animated Clawd who keeps your prompt cache warm",
   "author": {
     "name": "evrytests-maker",

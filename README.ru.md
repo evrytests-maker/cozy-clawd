@@ -10,7 +10,7 @@
 
 <img src="assets/hero.svg" alt="Панель cozy-clawd: полосы контекста, кеша и лимитов, рядом танцует Clawd">
 
-![version](https://img.shields.io/badge/version-0.0.4--beta-d97757)
+![version](https://img.shields.io/badge/version-0.0.5--beta-d97757)
 ![claude code](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-1f2125)
 ![license](https://img.shields.io/badge/license-MIT-5ad19a)
 
@@ -98,7 +98,7 @@ Clawd сидит справа от полос и реагирует на то, �
 | <img src="assets/clawd-dance.svg" height="30"> | ответ готов, из кеша ≥ 80% | танцует, летят сердечки |
 | <img src="assets/clawd-facepalm.svg" height="30"> | упал вызов инструмента | фейспалм |
 | <img src="assets/clawd-compact.svg" height="30"> | `/compact` или автосжатие | пресс уминает листы контекста в маленький кубик |
-| <img src="assets/clawd-campfire.svg" height="30"> | прогревает кеш | разжигает костёр и греет руки |
+| <img src="assets/clawd-campfire.svg" height="30"> | прогревает кеш | сидит у костра, греет руки, ворошит угли, подкидывает полено |
 | <img src="assets/clawd-meditate.svg" height="30"> | кеш протух | медитирует, над ним летят `z` |
 | <img src="assets/clawd-crab.svg" height="30"> | ничего не происходит | оглядывается, машет, ходит крабом, танцует хулу… |
 
@@ -135,7 +135,7 @@ claude plugin test ./cozy-clawd
 | `hooks/clawd.ts` | какая анимация когда, сердечки, отрисовка полублоками |
 | `hooks/clawd-anims.ts` | все кадры, генерируется |
 | `tools/extract_sprites.py` | достаёт исходные спрайты в `sprites.json` |
-| `tools/gen_anims.py` | собирает `clawd-anims.ts`; костёр и пресс нарисованы здесь |
+| `tools/gen_anims.py` | собирает `clawd-anims.ts`; здесь нарисован пресс, костёр берётся из `tools/campfire/` |
 | `tools/gen_svgs.py` | рисует картинки в `assets/` из кадров |
 
 После изменения анимаций:

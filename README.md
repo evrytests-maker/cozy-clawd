@@ -10,7 +10,7 @@ English · [Русский](README.ru.md)
 
 <img src="assets/hero.svg" alt="The cozy-clawd band: context, cache and limit bars with Clawd dancing beside them">
 
-![version](https://img.shields.io/badge/version-0.0.4--beta-d97757)
+![version](https://img.shields.io/badge/version-0.0.5--beta-d97757)
 ![claude code](https://img.shields.io/badge/Claude%20Code-2.1.275%2B-1f2125)
 ![license](https://img.shields.io/badge/license-MIT-5ad19a)
 
@@ -96,7 +96,7 @@ Clawd sits to the right of the bars and reacts to what your session is doing.
 | <img src="assets/clawd-dance.svg" height="30"> | answer done, ≥ 80% from cache | dances, hearts float up |
 | <img src="assets/clawd-facepalm.svg" height="30"> | a tool call failed | facepalm |
 | <img src="assets/clawd-compact.svg" height="30"> | `/compact` or auto-compact | a press packs pages of context into a tiny cube |
-| <img src="assets/clawd-campfire.svg" height="30"> | warming the cache | lights a campfire and warms his hands |
+| <img src="assets/clawd-campfire.svg" height="30"> | warming the cache | sits by a campfire, warms his hands, pokes the fire, tosses a log in |
 | <img src="assets/clawd-meditate.svg" height="30"> | the cache expired | meditates under drifting `z`s |
 | <img src="assets/clawd-crab.svg" height="30"> | nothing going on | looks around, waves, crab-walks, does the hula… |
 
@@ -133,7 +133,7 @@ claude plugin test ./cozy-clawd
 | `hooks/clawd.ts` | which animation plays when, hearts, the half-block drawing |
 | `hooks/clawd-anims.ts` | every frame, generated |
 | `tools/extract_sprites.py` | reads the source sprite sheets into `sprites.json` |
-| `tools/gen_anims.py` | builds `clawd-anims.ts`; the campfire and the press are drawn in here |
+| `tools/gen_anims.py` | builds `clawd-anims.ts`; the press is drawn in here, the campfire comes from `tools/campfire/` |
 | `tools/gen_svgs.py` | builds the pictures in `assets/` from the frames |
 
 After changing animations:

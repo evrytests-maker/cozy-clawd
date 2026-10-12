@@ -7,6 +7,7 @@ usage: python3 -I gen_anims.py sprites.json out.ts
 """
 import json
 import sys
+from pathlib import Path
 
 d = json.load(open(sys.argv[1]))
 USE = ['LookingAround', 'LookingAroundEyesOnly', 'Swaying', 'Turning', 'Waving', 'DancingHappy',
@@ -63,7 +64,7 @@ for name in USE:
 # Drawn here, at the band's own scale: props on the 6 free columns left of Clawd. Letters in the art below map to colours.
 INK = {
     'a': '#d97757', 'b': '#141413', 'c': '#be684d',                     # Clawd
-    'r': '#d04648', 'o': '#d27d2c', 'y': '#dad45e',                     # flame (krial's CC0 campfire)
+    'r': '#d04648', 'o': '#d27d2c', 'y': '#dad45e',                     # flame
     'l': '#854c30', 's': '#757161', 'e': '#442434',                     # logs, stones, char
     'w': '#faf7e5', 'g': '#cfcabb', 'm': '#8b8b8b',                     # sheets of context, packed
     'k': '#b8c0cc', 'h': '#6b7280',                                     # the press
@@ -106,27 +107,45 @@ def over(base, prop, x0=0):
     return out_rows
 
 
-# Warming: a campfire, after krial's CC0 16x16 one (opengameart.org/content/16x16-animated-campfire),
-# redrawn 5x6. Lit from embers, flickering while the guard warms the cache, then dying down.
-EMBERS = ['lrlrl', 's.e.s']
-FLAMES = [
-    ['..r..', '.ror.', 'royor', 'royyr'],
-    ['.r...', '.rro.', 'rooyr', 'royyr'],
-    ['...r.', '..or.', 'royor', 'ryyor'],
-    ['..r..', '..r..', '.ror.', 'royyr'],
-]
-LIT = [['.....'] * 4, ['.....'] * 3 + ['..r..'], ['.....'] * 2 + ['..r..', '.ror.'], ['.....', '..r..', '.ror.', 'royor']]
-def fire(flame):
-    return flame + EMBERS
+# Warming: Clawd sits at a campfire and warms his hands, pokes the fire, tosses a log in.
+# Drawn in tools/campfire (a 17x12 grid, one cell a pixel here); squashed to six rows by
+# dropping the rows a pose can spare, so the head, the eyes and the hands stay.
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'campfire'))
+import make as fire_art      # noqa: E402
+import make_v2 as fire_v2    # noqa: E402
 
-campfire = [ink(over(clawd(), fire(f))) for f in LIT]
-for i in range(16):                               # hands out, then rubbed by the face
-    arm = 'out' if (i // 4) % 2 == 0 else 'up'
-    campfire.append(ink(over(clawd(arm), fire(FLAMES[i % 4]))))
-out['Campfire'] = campfire
-out['CampfireOut'] = [ink(over(clawd(a), fire(f))) for a, f in
-                      [('out', FLAMES[3]), ('out', LIT[3]), ('down', LIT[2]), ('down', LIT[1]), ('down', LIT[0]),
-                       ('down', ['.....'] * 4), ('down', ['.....'] * 4)]]
+# Art rows each pose keeps (of 12), top to bottom: sitting drops a body row, standing
+# keeps the shape of the band's standing Clawd, crouching keeps one leg row.
+ROWS = {'sit': [5, 6, 7, 8, 9, 11], 'stand': [4, 5, 6, 8, 10, 11], 'crouch': [5, 6, 7, 9, 10, 11]}
+FIRE_DX = 1  # art column 7 (Clawd's head) lands on the band's column 8
+
+
+def from_art(f, pose='sit'):
+    rows = []
+    for y in ROWS[pose]:
+        line = ['.'] * (CW // 2)
+        for x, c in enumerate(f[y]):
+            if c != '.':
+                color = fire_art.PAL[c].lower()
+                if color not in palette:
+                    palette.append(color)
+                line[x + FIRE_DX] = 'abcdefghijklmnopqrstuvwxyz'[palette.index(color)]
+        rows.append(''.join(line))
+    return rows
+
+
+def held(frames, ms):
+    """Repeats each (frame, pose) for its duration in loop ticks, so one fps plays it."""
+    return [from_art(f, pose) for (f, pose), d in zip(frames, ms) for _ in range(max(1, round(d / fire_art.TICK)))]
+
+
+INTRO_POSES = ['stand', 'crouch', 'sit', 'sit']
+OUTRO_POSES = ['sit', 'sit', 'crouch', 'stand']
+intro = held([(f, p) for (f, _), p in zip(fire_art.INTRO, INTRO_POSES)], [d for _, d in fire_art.INTRO])
+loop = [from_art(f) for f in fire_v2.IDLE + fire_v2.POKE + fire_v2.IDLE + fire_v2.LOG]
+out['Campfire'] = intro + loop
+out['CampfireOut'] = held([(f, p) for (f, _), p in zip(fire_art.OUTRO, OUTRO_POSES)], [d for _, d in fire_art.OUTRO])
+print('campfire: intro', len(intro), 'loop', len(loop), 'out', len(out['CampfireOut']))
 
 
 # Compaction: sheets of context drop onto a pile, a press slams it into a block and lifts.

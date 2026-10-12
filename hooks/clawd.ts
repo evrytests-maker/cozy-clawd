@@ -33,9 +33,10 @@ export const CLIPS: Record<string, Clip> = {
   // then the pile is a little cube and Clawd hops.
   compact: { sprite: 'Compact', from: 0, to: 38, loop: [20, 38], fps: 10 },
   compactOut: { sprite: 'CompactOut', from: 0, to: 7, fps: 8 },
-  // The guard warming the cache: Clawd lights a campfire and warms his hands at it.
-  campfire: { sprite: 'Campfire', from: 0, to: 19, loop: [4, 19], fps: 8 },
-  campfireOut: { sprite: 'CampfireOut', from: 0, to: 6, fps: 8 },
+  // Warming the cache: Clawd sits down by a campfire, warms his hands, pokes the fire and
+  // tosses a log in (a loop of 64), then the fire dies down and he stands up.
+  campfire: { sprite: 'Campfire', from: 0, to: 72, loop: [9, 72], fps: 11 },
+  campfireOut: { sprite: 'CampfireOut', from: 0, to: 11, fps: 11 },
 }
 
 export function clipLength(c: Clip) {
@@ -157,14 +158,13 @@ export function draw(clip: string, frame: number, hearts: Heart[], glyphs: Recor
 
 const SPARKS = ['✦', '✧', '⋆', '·']
 
-// Glyphs a clip throws around itself: sparks over the campfire and smoke as it dies,
+// Glyphs a clip throws around itself: sparks over the campfire,
 // dust when the press slams, a glint on the packed cube, sparks as Clawd sparks.
 export function clipGlyphs(clip: string, frame: number, tick: number): Record<string, Cell> {
   const g: Record<string, Cell> = {}
-  if (clip === 'campfire' && frame >= 4) {
-    g[`0,${tick % 4 < 2 ? 0 : 4}`] = { text: tick % 3 ? '˙' : '·', fg: '#f2c94c' }
+  if (clip === 'campfire' && frame >= CLIPS.campfire!.loop![0]) {
+    g[`0,${tick % 4 < 2 ? 2 : 4}`] = { text: tick % 3 ? '˙' : '·', fg: '#f2c94c' }
   }
-  if (clip === 'campfireOut' && frame >= 3) g[`${frame >= 5 ? 0 : 1},2`] = { text: '~', fg: '#8b8b8b' }
   // Clawd's head row empty: the frame where he and the press come down.
   if (clip === 'compact' && SPRITES.Compact[frame]?.[0][10] === '.') {
     g['2,6'] = { text: tick % 2 ? '·' : '˙', fg: '#8b8b8b' }

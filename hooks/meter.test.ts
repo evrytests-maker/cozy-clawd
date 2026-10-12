@@ -21,7 +21,8 @@ test('clawd clips follow the session, sprites draw as three rows', () => {
   // Warming the cache lights a campfire; it dies down once the guard is done.
   expect(nextClip('idle', { ...calm, busy: 'guard' }, 0)).toBe('campfire')
   expect(nextClip('campfire', calm, 0)).toBe('campfireOut')
-  expect(Object.keys(clipGlyphs('campfire', 6, 0))).toEqual(['0,0'])
+  expect(Object.keys(clipGlyphs('campfire', 12, 0))).toEqual(['0,2'])
+  expect(Object.keys(clipGlyphs('campfire', 2, 0))).toEqual([])
   // Compaction runs the press even mid-turn, then leaves a packed cube.
   expect(nextClip('laptop', { ...calm, busy: 'turn', compacting: true }, 0)).toBe('compact')
   expect(nextClip('compact', calm, 0)).toBe('compactOut')
