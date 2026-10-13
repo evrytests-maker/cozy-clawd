@@ -490,7 +490,8 @@ export const register: Register = on => {
     const desktop = Svg !== undefined
 
     if (folded) {
-      const unfold = keep('unfold', () => <Button key="unfold" plain onPress={fold(false)}><Text dimColor>▸ Clawd</Text></Button>)
+      // Words, not arrows: a desktop's font draws the small triangles as a dot.
+      const unfold = keep('unfold', () => <Button key="unfold" plain dimColor onPress={fold(false)}>show</Button>)
       // The light look: the limit nearest to full, the spend, the cache hit.
       const nearest = limits.reduce<Limit | undefined>((a, l) => (a && a.percent >= l.percent ? a : l), undefined)
       const lite = [
@@ -595,14 +596,16 @@ export const register: Register = on => {
       <Box flexDirection="row" justifyContent="flex-start">
         <Box flexDirection="column" alignItems="flex-start" marginRight={1}>
           <Box flexDirection="row">
-            <Box width={2}>{keep('fold', () => <Button key="fold" plain onPress={fold(true)}><Text dimColor>▾</Text></Button>)}</Box>
             {row(top)}
           </Box>
           <Box flexDirection="row">
-            <Box width={2} />
             {bottom.length ? row(bottom) : <Text> </Text>}
           </Box>
-          <Box flexDirection="row"><Box width={2} />{info}</Box>
+          <Box flexDirection="row">
+            {info}
+            <Text dimColor> · </Text>
+            {keep('fold', () => <Button key="fold" plain dimColor onPress={fold(true)}>hide</Button>)}
+          </Box>
         </Box>
         {Svg ? (
           // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.

@@ -440,9 +440,9 @@ test('bars stand in a grid, the chat tokens add up, and the band folds away', as
     // Folded, the band is one button; unfolded, it is back.
     await ui.press({ key: 'fold' })
     expect(await ui.find({ key: 'ctx' })).toBeUndefined()
-    expect((await ui.find({ key: 'unfold' }))?.text).toBe('▸ Clawd')
+    expect((await ui.find({ key: 'unfold' }))?.text).toBe('show')
     // Folded, it still tells the limit nearest to full and the cache hit (no spend in this session).
-    expect(text(await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface }))).toBe('▸ Clawd · 5h 34% · cache 86%')
+    expect(text(await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface }))).toBe('show · 5h 34% · cache 86%')
     await ui.press({ key: 'unfold' })
     expect(await ui.find({ key: 'ctx' })).toBeDefined()
     await ui.unmount()

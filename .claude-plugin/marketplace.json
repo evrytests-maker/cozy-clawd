@@ -5,7 +5,7 @@
     {
       "name": "cozy-clawd",
       "source": "./",
-      "version": "0.3.2-beta",
+      "version": "0.3.3-beta",
       "description": "A cozy band above the prompt with an animated Clawd who keeps your prompt cache warm"
     }
   ],
