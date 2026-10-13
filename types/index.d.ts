@@ -29,8 +29,11 @@ export type Guard = {
   warms: number
 }
 
+// Every token this chat's API responses used, subagents' and the guard's warm-ups included.
+export type Tokens = { input: number; output: number; cache: number }
+
 declare module 'claude-code' {
   interface PluginState {
-    'cozy-clawd': { snap: Snap | null; cache: Cache; guard: Guard }
+    'cozy-clawd': { snap: Snap | null; cache: Cache; guard: Guard; tokens: Tokens }
   }
 }

@@ -73,8 +73,9 @@ test('clawd clips follow the session, sprites draw as three rows', () => {
   for (let i = 0; i < 80; i++) h = moveHearts(h)
   expect(h.length).toBe(0)
   expect(draw('idle', 0, [{ x: COLS - 2, y: 2 }]).flat().some(c => c.text === '♥')).toBe(true)
-  // 50% of 4 cells: two thick, two thin; the shine lights one cell.
-  expect(lineBar(50, 4, '#000000').map(r => r.text).join('')).toBe('━━──')
+  // 50% of 4 cells: two filled, two of the dim track, one glyph; the shine lights one cell.
+  expect(lineBar(50, 4, '#000000').map(r => r.text)).toEqual(['▃▃', '▃▃'])
+  expect(lineBar(50, 4, '#000000')[0]!.fg).toBe('#000000')
   expect(lineBar(50, 4, '#000000', 1).length).toBe(3)
   // Percents keep a space from the bar at any value, 100% included.
   expect(pct(100)).toBe(' 100%')
@@ -363,6 +364,66 @@ test('the guard keeps its press handle while Clawd animates, so a click on a sho
     // The guard label switches warm off on either surface.
     await ui.press({ key: 'guard' })
     expect(await ui.find({ text: 'Clawd: warm' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('bars stand in a grid, the chat tokens add up, and the band folds away', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-12T10:00:00Z') })
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: { tokens: 128_000, window: 512_000, percent: 25 },
+      rateLimits: [
+        { kind: 'five_hour', percentUsed: 34, resetsAt: '2026-10-12T12:10:00Z' },
+        { kind: 'seven_day', percentUsed: 12, resetsAt: '2026-10-16T10:00:00Z' },
+      ],
+    },
+  }))
+  on('turn.step', async function* (_$, e) {
+    return {
+      turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const,
+      usage: { model: 'm', input_tokens: 1000, output_tokens: 500, cache_read_input_tokens: 9000, cache_creation_input_tokens: 500 },
+    }
+  })
+  // Every response counts, a subagent's too.
+  for (const agentId of [undefined, 'sub']) {
+    for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1, agentId }));
+  }
+  // Each row's text, and where its bars start.
+  const text = (n: unknown): string =>
+    Array.isArray(n) ? n.map(text).join('')
+    : n && typeof n === 'object' ? ((n as { type?: string; props?: { label?: string } }).type === 'Button' && !(n as { children?: unknown[] }).children?.length ? (n as { props: { label: string } }).props.label : text((n as { children?: unknown }).children))
+    : typeof n === 'string' ? n : ''
+  const rows = async (surface: 'terminal' | 'desktop') => {
+    const tree = (await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface })) as unknown as { children: { children: unknown[] }[] }
+    return tree.children[0]!.children.map(text)
+  }
+  const bars = (row: string) => [...row.matchAll(/▃+/g)].map(m => m.index)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
+    await clock.advance(3000)
+    let [top, bottom] = await rows(surface)
+    expect(bars(top!).length).toBe(2)
+    expect(bars(top!)).toEqual(bars(bottom!))
+    expect(top!.length).toBe(bottom!.length)
+    // A percent switched to its detail widens its whole column: the bars stay in line.
+    await ui.press({ key: 'ctx' })
+    ;[top, bottom] = await rows(surface)
+    expect(top).toContain('128k/512k')
+    expect(bars(top!)).toEqual(bars(bottom!))
+    await ui.press({ key: 'ctx' })
+    // Two responses of 11k each; a press splits the total, and back.
+    expect((await ui.find({ key: 'tok' }))?.text).toBe('Σ 22k tok')
+    await ui.press({ key: 'tok' })
+    expect((await ui.find({ key: 'tok' }))?.text).toBe('in 2k · out 1k · cache 19k')
+    await ui.press({ key: 'tok' })
+    // Folded, the band is one button; unfolded, it is back.
+    await ui.press({ key: 'fold' })
+    expect(await ui.find({ key: 'ctx' })).toBeUndefined()
+    expect((await ui.find({ key: 'unfold' }))?.text).toBe('▸ Clawd')
+    await ui.press({ key: 'unfold' })
+    expect(await ui.find({ key: 'ctx' })).toBeDefined()
     await ui.unmount()
   }
 })

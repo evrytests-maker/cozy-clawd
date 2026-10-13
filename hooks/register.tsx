@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Guard, Limit, Snap } from '../types'
+import type { Guard, Limit, Snap, Tokens } from '../types'
 import { BODY_RIGHT, CLIPS, FIRE, clipGlyphs, clipSpan, draw, drawSvg, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import type { Cell, Heart, Scene } from './clawd'
 import { COLS } from './clawd-anims'
@@ -9,6 +9,18 @@ import { COLS } from './clawd-anims'
 const snap = atom({ plugin: 'cozy-clawd', key: 'snap' } as const, null)
 const cache = atom({ plugin: 'cozy-clawd', key: 'cache' } as const, { lastHit: null, lastAt: null })
 const guard = atom({ plugin: 'cozy-clawd', key: 'guard' } as const, { mode: 'off', warms: 0 })
+const tokens = atom({ plugin: 'cozy-clawd', key: 'tokens' } as const, { input: 0, output: 0, cache: 0 })
+
+type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
+const countTokens = ($: EngineInterface, u: Usage) =>
+  update($, tokens, (x): Tokens => ({
+    input: x.input + u.input_tokens,
+    output: x.output + u.output_tokens,
+    cache: x.cache + u.cache_read_input_tokens + u.cache_creation_input_tokens,
+  }))
+
+// Folded, the band is one button and Clawd rests; kept across sessions in the store.
+let folded = false
 
 // Every word the band and its toasts say.
 export const t = {
@@ -150,6 +162,7 @@ async function runGuard($: EngineInterface) {
       await update($, guard, x => ({ ...x, warms: x.warms + 1 }))
       cacheLeftMin = CACHE_TTL_MS / 60_000
       const hit = r.usage.cache_read_input_tokens
+      await countTokens($, r.usage)
       $.ui.toast(t.warmed(Math.round(hit / 1000)))
     } else {
       await update($, guard, x => ({ ...x, warms: MAX_WARMS }))
@@ -231,7 +244,7 @@ let drawnAt = 0
 const UNDRAWN_TICKS = 30
 
 function animate($: EngineInterface, gen: number) {
-  if (gen !== loop) return
+  if (gen !== loop || folded) return
   tick += 1
   typingRate += ((typed * 1000) / Math.max(lastWait, FRAME_MS) - typingRate) * 0.15
   typed = 0
@@ -304,7 +317,8 @@ export function ramp(stops: [number, string][], t: number) {
 
 export type Run = { text: string; fg: string }
 
-// A thin line `width` cells long: '━' up to `p`% in `color`, '─' after; `shine` lights one cell.
+// A bar `width` cells long of '▃' (a touch thicker than a line): `color` up to `p`%, the dim
+// track after; `shine` lights one cell.
 export function lineBar(p: number, width: number, color: string, shine = -1): Run[] {
   const full = Math.max(0, Math.min(width, Math.round((Math.max(0, Math.min(100, p)) / 100) * width)))
   const runs: Run[] = []
@@ -314,8 +328,8 @@ export function lineBar(p: number, width: number, color: string, shine = -1): Ru
     if (last && last.fg === fg) last.text += text
     else runs.push({ text, fg })
   }
-  for (let i = 0; i < full; i++) push('━', i === shine ? mix(color, '#ffffff', 0.55) : color)
-  push('─'.repeat(width - full), EMPTY)
+  for (let i = 0; i < full; i++) push('▃', i === shine ? mix(color, '#ffffff', 0.55) : color)
+  push('▃'.repeat(width - full), EMPTY)
   return runs
 }
 
@@ -354,6 +368,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    folded = (await $.store.get('folded').catch(() => undefined)) === true
     await refresh($)
     start($)
     return result
@@ -396,6 +411,7 @@ export const register: Register = on => {
     }
     const result = await stream.result
     const u = result.usage
+    if (u) await countTokens($, u)
     // Main thread only; subagents keep caches of their own.
     if (u && e.agentId === undefined) {
       if (e.effort !== undefined) effortFor[baseModel(e.model)] = lastEffort = String(e.effort)
@@ -418,6 +434,7 @@ export const register: Register = on => {
     const s = await read($, snap)
     const c = await read($, cache)
     const g = await read($, guard)
+    const toks = await read($, tokens)
     warmOn = g.mode === 'warm'
     if (e.props.isWorking !== working) {
       // A finished turn earns a reaction: hearts for a warm cache, a sigh for a cold one.
@@ -447,6 +464,14 @@ export const register: Register = on => {
         flipped[k] = !flipped[k]
         $.ui.invalidate('ui.render')
       })
+    // Folds the band away, or opens it again; Clawd rests while it is folded.
+    const fold = (to: boolean) =>
+      (flips[to ? 'fold' : 'unfold'] ??= () => {
+        folded = to
+        void $.store.set('folded', to).catch(() => {})
+        if (!to) kick($)
+        $.ui.invalidate('ui.render')
+      })
     const drawing = `${e.surface}|${e.requestId}`
     const held = heldButtons[drawing] ?? new Map<string, JSX.Element>()
     const kept = new Map<string, JSX.Element>()
@@ -460,29 +485,47 @@ export const register: Register = on => {
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const desktop = Svg !== undefined
 
-    // A meter's percent; given `detail`, a switch that shows the detail in its place, and back.
-    const meter = (label: string, k: string, stops: [number, string][], empty = false, detail?: string) => {
-      const p = empty ? 0 : v(k)
-      const color = empty ? EMPTY : ramp(stops, p / 100)
-      const value = empty ? pct(null) : pct(p)
+    if (folded) {
+      const unfold = keep('unfold', () => <Button key="unfold" plain onPress={fold(false)}><Text dimColor>▸ Clawd</Text></Button>)
+      heldButtons[drawing] = kept
+      return <Box flexDirection="row">{unfold}</Box>
+    }
+
+    // A meter: its label, bar and percent; given `detail`, the percent is a switch that
+    // shows the detail in its place, and back.
+    type Meter = { label: string; k: string; stops: [number, string][]; empty: boolean; detail?: string }
+    const valueOf = (m: Meter) => (m.detail && flipped[m.k] ? ` ${m.detail}` : pct(m.empty ? null : v(m.k)))
+    const meter = (m: Meter, labelW: number, valueW: number) => {
+      const p = m.empty ? 0 : v(m.k)
+      const color = m.empty ? EMPTY : ramp(m.stops, p / 100)
+      const text = valueOf(m).padEnd(valueW)
       return [
-        <Text dimColor>{label} </Text>,
+        <Text dimColor>{m.label.padEnd(labelW)} </Text>,
         ...lineBar(p, barWidth, color, shimmer).map(r => <Text color={r.fg}>{r.text}</Text>),
-        detail ? (
-          (text => keep(`${k}|${color}|${text}`, () => (
-            <Button key={k} plain onPress={flipOf(k)}>
-              <Text color={color} bold>{text}</Text>
-            </Button>
-          )))(flipped[k] ? ` ${detail}` : value)
-        ) : (
-          <Text color={color} bold>{value}</Text>
-        ),
+        m.detail
+          ? keep(`${m.k}|${color}|${text}`, () => (
+              <Button key={m.k} plain onPress={flipOf(m.k)}>
+                <Text color={color} bold>{text}</Text>
+              </Button>
+            ))
+          : <Text color={color} bold>{text}</Text>,
       ]
     }
-    const limit = (l: { kind: string; resetsAt?: string }, i: number) => {
-      const resets = s ? resetsIn(l.resetsAt, s.at).replace(' ', '') : ''
-      return meter(t.limits[l.kind] ?? l.kind, `lim${i}`, LOAD_RAMP, false, resets || undefined)
-    }
+    const top: Meter[] = [
+      { label: 'ctx', k: 'ctx', stops: LOAD_RAMP, empty: false, detail: s ? `${tok(s.contextTokens)}/${tok(s.contextWindow)}` : undefined },
+      { label: t.cache, k: 'hit', stops: CACHE_RAMP, empty: c.lastHit === null },
+    ]
+    const bottom: Meter[] = limits.map((l, i) => ({
+      label: t.limits[l.kind] ?? l.kind,
+      k: `lim${i}`,
+      stops: LOAD_RAMP,
+      empty: false,
+      detail: (s ? resetsIn(l.resetsAt, s.at).replace(' ', '') : '') || undefined,
+    }))
+    // Both rows share each column's label and value widths, so the bars stand in a grid.
+    const widest = (i: number, f: (m: Meter) => number) => Math.max(...[top[i], bottom[i]].map(m => (m ? f(m) : 0)))
+    const row = (ms: Meter[]) => ms.map((m, i) => [i ? <Text>  </Text> : null, ...meter(m, widest(i, x => x.label.length), widest(i, x => valueOf(x).length))])
+    const all = toks.input + toks.output + toks.cache
 
     const left = cacheLeftMin
     const sep = <Text dimColor> · </Text>
@@ -494,6 +537,12 @@ export const register: Register = on => {
         ? []
         : [...(s?.model || s?.effort ? [sep] : []), <Text color={left === 0 ? 'error' : left <= 5 ? 'warning' : undefined} dimColor={left > 5}>{left ? t.cacheLeft(left) : t.cacheAsleep}</Text>]),
       ...(s?.usd !== undefined && s.usd >= 0.005 ? [sep, <Text color="#5fb8ff" bold>{`$${s.usd.toFixed(2)}`}</Text>] : []),
+      // Every token the chat used; a press splits it into input, output and cache, and back.
+      ...(all
+        ? [sep, (text => keep(`tok|${text}`, () => <Button key="tok" plain onPress={flipOf('tok')}><Text color="#a9b1d6">{text}</Text></Button>))(
+            flipped.tok ? `in ${tok(toks.input)} · out ${tok(toks.output)} · cache ${tok(toks.cache)}` : `Σ ${tok(all)} tok`,
+          )]
+        : []),
       // A desktop cannot press Clawd (see below): the guard gets a button of its own there.
       // In the terminal it shows while warm: a still target to switch it off by, as Clawd moves.
       ...(desktop || g.mode === 'warm'
@@ -521,14 +570,15 @@ export const register: Register = on => {
       <Box flexDirection="row" justifyContent="flex-start">
         <Box flexDirection="column" alignItems="flex-start" marginRight={1}>
           <Box flexDirection="row">
-            {meter('ctx', 'ctx', LOAD_RAMP, false, s ? `${tok(s.contextTokens)}/${tok(s.contextWindow)}` : undefined)}
-            <Text>  </Text>
-            {meter(t.cache, 'hit', CACHE_RAMP, c.lastHit === null)}
+            {keep('fold', () => <Button key="fold" plain onPress={fold(true)}><Text dimColor>▾</Text></Button>)}
+            <Text> </Text>
+            {row(top)}
           </Box>
           <Box flexDirection="row">
-            {limits.length ? limits.map((l, i) => [i ? <Text>  </Text> : null, ...limit(l, i)]) : <Text> </Text>}
+            <Text>  </Text>
+            {bottom.length ? row(bottom) : <Text> </Text>}
           </Box>
-          <Box flexDirection="row">{info}</Box>
+          <Box flexDirection="row"><Text>  </Text>{info}</Box>
         </Box>
         {Svg ? (
           // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.

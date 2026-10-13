@@ -71,16 +71,16 @@ claude plugin uninstall cozy-clawd@cozy-clawd # remove it
 ## What's on the band
 
 ```
-  ctx ━━━─────── 23%  cache ━━━━━━━━━─ 92%
-   5h ━━━━────── 37%  7d ━━──────── 17%
-  Opus 5.5 high · cache 52m left · $0.42 · Clawd: warm
+▾ ctx ▃▃▃▃▃▃▃▃▃▃  23%  cache ▃▃▃▃▃▃▃▃▃▃  92%
+  5h  ▃▃▃▃▃▃▃▃▃▃  37%  7d    ▃▃▃▃▃▃▃▃▃▃  17%
+  Opus 5.5 high · cache 52m left · $0.42 · Σ 1.4M tok · Clawd: warm
 ```
 
 | Row | What it tells you |
 | --- | --- |
 | 1 | **ctx**: how full the context is, counted against the auto-compact window. Click the percent to see tokens (`48k/1M`), and click again to go back. **cache**: how much of the last request was read from the prompt cache. |
 | 2 | Your **5h** and **7d** subscription limits. Click a percent to see when that limit resets (`3h23m`), and click again to go back. Until a new session gets its first response, the last reading from any session is shown. The row is hidden on an API key. |
-| 3 | Model and reasoning effort, how long the prompt cache has left (one hour on a subscription), spend so far, and `Clawd: warm` while he watches the cache. |
+| 3 | Model and reasoning effort, how long the prompt cache has left (one hour on a subscription), spend so far, every token the chat used (`Σ`; click it for input, output and cache), and `Clawd: warm` while he watches the cache. `▾` folds the band into one `▸ Clawd` line, kept across sessions. |
 
 The bars go green → amber → red as they fill (the cache bar runs the other way). Values ease into place, and a shine runs along the bars while Claude is working.
 
