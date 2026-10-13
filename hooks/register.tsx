@@ -487,8 +487,15 @@ export const register: Register = on => {
 
     if (folded) {
       const unfold = keep('unfold', () => <Button key="unfold" plain onPress={fold(false)}><Text dimColor>▸ Clawd</Text></Button>)
+      // The light look: the limit nearest to full, the spend, the cache hit.
+      const nearest = limits.reduce<Limit | undefined>((a, l) => (a && a.percent >= l.percent ? a : l), undefined)
+      const lite = [
+        ...(nearest ? [<Text color={ramp(LOAD_RAMP, nearest.percent / 100)}>{`${t.limits[nearest.kind] ?? nearest.kind} ${Math.round(nearest.percent)}%`}</Text>] : []),
+        ...(s?.usd !== undefined && s.usd >= 0.005 ? [<Text color="#5fb8ff">{`$${s.usd.toFixed(2)}`}</Text>] : []),
+        ...(c.lastHit !== null ? [<Text color={ramp(CACHE_RAMP, c.lastHit / 100)}>{`${t.cache} ${Math.round(c.lastHit)}%`}</Text>] : []),
+      ].flatMap(x => [<Text dimColor> · </Text>, x])
       heldButtons[drawing] = kept
-      return <Box flexDirection="row">{unfold}</Box>
+      return <Box flexDirection="row">{unfold}{lite}</Box>
     }
 
     // A meter: its label, bar and percent; given `detail`, the percent is a switch that
