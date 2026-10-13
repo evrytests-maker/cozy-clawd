@@ -220,8 +220,8 @@ test('band labels, model and effort', async ($, on) => {
   })
   for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1, effort: 'medium' }));
   const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface: 'terminal', ...band(false) })
-  expect(await ui.find({ type: 'Text', text: 'cache ' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: '5h ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'cache' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '5h' })).toBeDefined()
   await ui.press({ key: 'lim0' })
   expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 3h26m')
   expect(await ui.find({ type: 'Text', text: 'cache 60m left' })).toBeDefined()
@@ -271,8 +271,8 @@ test('the last limits seen are shown before a session has its own', async ($, on
   on('session.measure', (_$, e) => ({ changed: e.changed }))
   await $.session.measure({ context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: limits, changed: ['rateLimits'] })
   const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface: 'terminal', ...band(false) })
-  expect(await ui.find({ type: 'Text', text: '5h ' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: '7d ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '5h' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '7d' })).toBeDefined()
   await ui.press({ key: 'lim0' })
   expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 2h10m')
   await ui.unmount()
@@ -312,11 +312,17 @@ test('typing speeds up with the model, in the terminal and on the desktop', asyn
       usage: { model: 'm', input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 9 },
     }
   })
+  // Clawd's picture on the desktop: the Svg whose alt names him (the bars are pictures too).
+  const clawdSvg = (n: unknown): string => {
+    if (Array.isArray(n)) return n.map(clawdSvg).join('')
+    const x = n as { type?: string; props?: { alt?: string; source?: string }; children?: unknown } | null
+    return !x || typeof x !== 'object' ? '' : x.type === 'Svg' && x.props?.alt === 'Clawd' ? x.props.source ?? '' : clawdSvg(x.children)
+  }
   // The keys' clicks: a cell of their own in the terminal, a glyph in the desktop's picture.
   const clicks = async (ui: { find: (q: { type?: string; text?: RegExp }) => Promise<{ props: Record<string, unknown> } | undefined> }, surface: string) =>
     surface === 'terminal'
       ? (await ui.find({ type: 'Text', text: /^[˙·]$/ })) !== undefined
-      : /[˙·]<\/text>/.test(String((await ui.find({ type: 'Svg' }))?.props.source ?? ''))
+      : /[˙·]<\/text>/.test(clawdSvg(await $.ui.render({ component: 'AbovePrompt', props: band(true).props, surface: 'desktop' })))
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(true) })
     await clock.advance(3000) // the laptop goes down; nothing streams yet, so no clicks
@@ -395,22 +401,35 @@ test('bars stand in a grid, the chat tokens add up, and the band folds away', as
     Array.isArray(n) ? n.map(text).join('')
     : n && typeof n === 'object' ? ((n as { type?: string; props?: { label?: string } }).type === 'Button' && !(n as { children?: unknown[] }).children?.length ? (n as { props: { label: string } }).props.label : text((n as { children?: unknown }).children))
     : typeof n === 'string' ? n : ''
+  type Node = { type?: string; props?: { width?: number }; children?: unknown }
   const rows = async (surface: 'terminal' | 'desktop') => {
-    const tree = (await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface })) as unknown as { children: { children: unknown[] }[] }
-    return tree.children[0]!.children.map(text)
+    const tree = (await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface })) as unknown as { children: { children: Node[] }[] }
+    return tree.children[0]!.children
   }
-  const bars = (row: string) => [...row.matchAll(/▃+/g)].map(m => m.index)
+  // Where a row's bars start, in cells: a sized box counts its width, a text its length,
+  // a desktop's bar picture its pixels over 8 a cell.
+  const bars = (row: Node) => {
+    const starts: number[] = []
+    let x = 0
+    let inBar = false
+    for (const n of (row.children as Node[]).flat(3) as Node[]) {
+      const isBar = n.type === 'Svg' || (n.type === 'Text' && /^▃+$/.test(text(n)))
+      if (isBar && !inBar) starts.push(x)
+      inBar = isBar
+      x += n.type === 'Svg' ? n.props!.width! / 8 : n.props?.width ?? text(n).length
+    }
+    return starts
+  }
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
     await clock.advance(3000)
     let [top, bottom] = await rows(surface)
     expect(bars(top!).length).toBe(2)
     expect(bars(top!)).toEqual(bars(bottom!))
-    expect(top!.length).toBe(bottom!.length)
     // A percent switched to its detail widens its whole column: the bars stay in line.
     await ui.press({ key: 'ctx' })
     ;[top, bottom] = await rows(surface)
-    expect(top).toContain('128k/512k')
+    expect(text(top)).toContain('128k/512k')
     expect(bars(top!)).toEqual(bars(bottom!))
     await ui.press({ key: 'ctx' })
     // Two responses of 11k each; a press splits the total, and back.

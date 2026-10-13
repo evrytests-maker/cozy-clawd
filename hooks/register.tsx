@@ -42,6 +42,10 @@ export const GUARD_LEAD_MS = 5 * 60_000
 // Warming stops after this many pings in one idle stretch (~4h kept alive).
 export const MAX_WARMS = 3
 const GUARD_CHIP = '#ff8f5a'
+// A desktop's bar picture: CSS pixels per cell, the drawing's height and the bar's thickness.
+const BAR_PX = 8
+const BAR_H = 16
+const BAR_T = 6
 
 // Bar colours by level: green → amber → red for load, the reverse for the cache.
 const EMPTY = '#4b4f58'
@@ -502,20 +506,34 @@ export const register: Register = on => {
     // shows the detail in its place, and back.
     type Meter = { label: string; k: string; stops: [number, string][]; empty: boolean; detail?: string }
     const valueOf = (m: Meter) => (m.detail && flipped[m.k] ? ` ${m.detail}` : pct(m.empty ? null : v(m.k)))
+    // A bar: '▃' cells in the terminal; a desktop's font draws that glyph wider than a cell,
+    // so there it is a picture of BAR_PX per cell, every bar the same width.
+    const bar = (runs: Run[], alt: string) => {
+      if (!Svg) return runs.map(r => <Text color={r.fg}>{r.text}</Text>)
+      let x = 0
+      const rects = runs.map(r => {
+        const w = r.text.length * BAR_PX
+        x += w
+        return `<rect x="${x - w}" y="${(BAR_H - BAR_T) / 2}" width="${w}" height="${BAR_T}" fill="${r.fg}"/>`
+      })
+      return <Svg source={`<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${BAR_H}">${rects.join('')}</svg>`} alt={alt} width={x} height={BAR_H} />
+    }
+    // Label and value sit in boxes a fixed number of cells wide, which every surface
+    // measures in its monospace metric, so the columns line up whatever the font.
     const meter = (m: Meter, labelW: number, valueW: number) => {
       const p = m.empty ? 0 : v(m.k)
       const color = m.empty ? EMPTY : ramp(m.stops, p / 100)
-      const text = valueOf(m).padEnd(valueW)
+      const text = valueOf(m)
       return [
-        <Text dimColor>{m.label.padEnd(labelW)} </Text>,
-        ...lineBar(p, barWidth, color, shimmer).map(r => <Text color={r.fg}>{r.text}</Text>),
-        m.detail
+        <Box width={labelW + 1}><Text dimColor>{m.label}</Text></Box>,
+        bar(lineBar(p, barWidth, color, shimmer), `${m.label} ${Math.round(p)}%`),
+        <Box width={valueW}>{m.detail
           ? keep(`${m.k}|${color}|${text}`, () => (
               <Button key={m.k} plain onPress={flipOf(m.k)}>
                 <Text color={color} bold>{text}</Text>
               </Button>
             ))
-          : <Text color={color} bold>{text}</Text>,
+          : <Text color={color} bold>{text}</Text>}</Box>,
       ]
     }
     const top: Meter[] = [
@@ -531,7 +549,7 @@ export const register: Register = on => {
     }))
     // Both rows share each column's label and value widths, so the bars stand in a grid.
     const widest = (i: number, f: (m: Meter) => number) => Math.max(...[top[i], bottom[i]].map(m => (m ? f(m) : 0)))
-    const row = (ms: Meter[]) => ms.map((m, i) => [i ? <Text>  </Text> : null, ...meter(m, widest(i, x => x.label.length), widest(i, x => valueOf(x).length))])
+    const row = (ms: Meter[]) => ms.map((m, i) => [i ? <Box width={2} /> : null, ...meter(m, widest(i, x => x.label.length), widest(i, x => valueOf(x).length))])
     const all = toks.input + toks.output + toks.cache
 
     const left = cacheLeftMin
@@ -577,15 +595,14 @@ export const register: Register = on => {
       <Box flexDirection="row" justifyContent="flex-start">
         <Box flexDirection="column" alignItems="flex-start" marginRight={1}>
           <Box flexDirection="row">
-            {keep('fold', () => <Button key="fold" plain onPress={fold(true)}><Text dimColor>▾</Text></Button>)}
-            <Text> </Text>
+            <Box width={2}>{keep('fold', () => <Button key="fold" plain onPress={fold(true)}><Text dimColor>▾</Text></Button>)}</Box>
             {row(top)}
           </Box>
           <Box flexDirection="row">
-            <Text>  </Text>
+            <Box width={2} />
             {bottom.length ? row(bottom) : <Text> </Text>}
           </Box>
-          <Box flexDirection="row"><Text>  </Text>{info}</Box>
+          <Box flexDirection="row"><Box width={2} />{info}</Box>
         </Box>
         {Svg ? (
           // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.
