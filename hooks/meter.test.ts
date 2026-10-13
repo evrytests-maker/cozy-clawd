@@ -336,3 +336,33 @@ test('typing speeds up with the model, in the terminal and on the desktop', asyn
     await after.unmount()
   }
 })
+
+test('the guard keeps its press handle while Clawd animates, so a click on a shown drawing lands', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
+  // The press handles a drawing carries, by key: the host drops a click whose handle the band has since let go of.
+  const handles = (n: unknown, out: Record<string, number> = {}): Record<string, number> => {
+    if (Array.isArray(n)) n.forEach(c => handles(c, out))
+    else if (n && typeof n === 'object') {
+      const x = n as { props?: { key?: string }; press?: { handle: number }; children?: unknown }
+      if (x.press && x.props?.key) out[x.props.key] = x.press.handle
+      handles(x.children, out)
+    }
+    return out
+  }
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const draw = async () => handles(await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface }))
+    const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
+    // Warm: Clawd sits at the campfire, redrawing many times a second.
+    await ui.press({ key: surface === 'desktop' ? 'guard' : 'clawd0' })
+    const first = await draw()
+    for (let i = 0; i < 5; i++) {
+      await clock.advance(100)
+      expect((await draw()).guard).toBe(first.guard)
+    }
+    // The guard label switches warm off on either surface.
+    await ui.press({ key: 'guard' })
+    expect(await ui.find({ text: 'Clawd: warm' })).toBeUndefined()
+    await ui.unmount()
+  }
+})

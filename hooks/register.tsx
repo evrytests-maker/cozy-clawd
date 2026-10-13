@@ -261,6 +261,28 @@ function start($: EngineInterface) {
   $.clock.every(15_000, () => void runGuard($))
 }
 
+// A click carries the press handle of the drawing the surface shows, and the host lets go
+// of a handle as soon as a drawing without that very element replaces it: every new
+// <Button> gets a new one. While Clawd animates (campfire, typing) the band redraws up to
+// MAX_FPS times a second, so a click on a freshly made Button was dropped nine times in ten.
+// A Button is therefore made once per look and handed back while it looks the same,
+// its handler made once too, so a reused Button never runs a stale one.
+let onClawd: (() => Promise<void>) | undefined
+const flips: Record<string, () => void> = {}
+// The Buttons each drawing (surface and instance) last carried, by what they show.
+const heldButtons: Record<string, Map<string, JSX.Element>> = {}
+
+// A click on Clawd switches the cache guard; switched on, he lights a campfire for a moment.
+async function press($: EngineInterface) {
+  const g = await update($, guard, (x): Guard => ({ ...x, mode: x.mode === 'warm' ? 'off' : 'warm' }))
+  const enable = g.mode === 'warm'
+  warmOn = enable
+  // Switched off, the fire goes out now rather than after its loop.
+  if (!enable && FIRE.includes(clip) && !warming) play('campfireOut')
+  reaction = enable && !FIRE.includes(clip) ? 'campfire' : null
+  kick($)
+}
+
 function hex(c: string) {
   return [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16))
 }
@@ -418,15 +440,20 @@ export const register: Register = on => {
     const cols = e.props.bodyColumns
     const barWidth = cols >= 90 ? 10 : cols >= 70 ? 7 : 4
     const shimmer = working || warming ? tick % (barWidth + 4) : -1
-    // A click on Clawd switches the cache guard; switched on, he lights a campfire for a moment.
-    const press = async () => {
-      const enable = g.mode !== 'warm'
-      await update($, guard, (x): Guard => ({ ...x, mode: enable ? 'warm' : 'off' }))
-      warmOn = enable
-      // Switched off, the fire goes out now rather than after its loop.
-      if (!enable && FIRE.includes(clip) && !warming) play('campfireOut')
-      reaction = enable && !FIRE.includes(clip) ? 'campfire' : null
-      kick($)
+    onClawd ??= () => press($)
+    // A meter's percent switches to its detail and back.
+    const flipOf = (k: string) =>
+      (flips[k] ??= () => {
+        flipped[k] = !flipped[k]
+        $.ui.invalidate('ui.render')
+      })
+    const drawing = `${e.surface}|${e.requestId}`
+    const held = heldButtons[drawing] ?? new Map<string, JSX.Element>()
+    const kept = new Map<string, JSX.Element>()
+    const keep = (look: string, make: () => JSX.Element) => {
+      const b = kept.get(look) ?? held.get(look) ?? make()
+      kept.set(look, b)
+      return b
     }
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
@@ -442,12 +469,11 @@ export const register: Register = on => {
         <Text dimColor>{label} </Text>,
         ...lineBar(p, barWidth, color, shimmer).map(r => <Text color={r.fg}>{r.text}</Text>),
         detail ? (
-          <Button key={k} plain onPress={() => {
-            flipped[k] = !flipped[k]
-            $.ui.invalidate('ui.render')
-          }}>
-            <Text color={color} bold>{flipped[k] ? ` ${detail}` : value}</Text>
-          </Button>
+          (text => keep(`${k}|${color}|${text}`, () => (
+            <Button key={k} plain onPress={flipOf(k)}>
+              <Text color={color} bold>{text}</Text>
+            </Button>
+          )))(flipped[k] ? ` ${detail}` : value)
         ) : (
           <Text color={color} bold>{value}</Text>
         ),
@@ -469,9 +495,12 @@ export const register: Register = on => {
         : [...(s?.model || s?.effort ? [sep] : []), <Text color={left === 0 ? 'error' : left <= 5 ? 'warning' : undefined} dimColor={left > 5}>{left ? t.cacheLeft(left) : t.cacheAsleep}</Text>]),
       ...(s?.usd !== undefined && s.usd >= 0.005 ? [sep, <Text color="#5fb8ff" bold>{`$${s.usd.toFixed(2)}`}</Text>] : []),
       // A desktop cannot press Clawd (see below): the guard gets a button of its own there.
-      ...(desktop
-        ? [sep, <Button key="guard" plain onPress={press}>{g.mode === 'warm' ? t.guard : t.guardOff}</Button>]
-        : g.mode === 'warm' ? [sep, <Text color={GUARD_CHIP}>{t.guard}</Text>] : []),
+      // In the terminal it shows while warm: a still target to switch it off by, as Clawd moves.
+      ...(desktop || g.mode === 'warm'
+        ? [sep, g.mode === 'warm'
+            ? keep('guard|warm', () => <Button key="guard" plain onPress={onClawd}><Text color={GUARD_CHIP}>{t.guard}</Text></Button>)
+            : keep('guard|off', () => <Button key="guard" plain onPress={onClawd}>{t.guardOff}</Button>)]
+        : []),
     ]
 
     // Glyphs beside the sprite: z's over a meditating Clawd, a drop under load.
@@ -486,9 +515,11 @@ export const register: Register = on => {
     const shift = shiftAt(CLIPS[clip]!, played)
     const span = clipSpan(clip)
 
+    heldButtons[drawing] = kept
+    // Left-aligned: the bars start at the edge and stay put whatever Clawd's clip spans.
     return (
-      <Box flexDirection="row" justifyContent="flex-end">
-        <Box flexDirection="column" alignItems="flex-end" marginRight={1}>
+      <Box flexDirection="row" justifyContent="flex-start">
+        <Box flexDirection="column" alignItems="flex-start" marginRight={1}>
           <Box flexDirection="row">
             {meter('ctx', 'ctx', LOAD_RAMP, false, s ? `${tok(s.contextTokens)}/${tok(s.contextWindow)}` : undefined)}
             <Text>  </Text>
@@ -504,13 +535,15 @@ export const register: Register = on => {
           (pic => <Svg source={pic.svg} alt="Clawd" width={pic.width} height={pic.height} />)(drawSvg(clip, frameAt, hearts, glyphs, shift, span))
         ) : (
           <Box flexDirection="column">
-            {draw(clip, frameAt, hearts, glyphs, shift, span).map((runs, i) => (
-              <Button key={`clawd${i}`} plain onPress={press}>
-                {runs.map(r => (
-                  <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>
-                ))}
-              </Button>
-            ))}
+            {draw(clip, frameAt, hearts, glyphs, shift, span).map((runs, i) =>
+              keep(`clawd${i}|${JSON.stringify(runs)}`, () => (
+                <Button key={`clawd${i}`} plain onPress={onClawd}>
+                  {runs.map(r => (
+                    <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>
+                  ))}
+                </Button>
+              )),
+            )}
           </Box>
         )}
       </Box>
