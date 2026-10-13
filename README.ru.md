@@ -71,9 +71,9 @@ claude plugin uninstall cozy-clawd@cozy-clawd # удалить совсем
 ## Что на панели
 
 ```
-ctx ▃▃▃▃▃▃▃▃▃▃  23%  cache ▃▃▃▃▃▃▃▃▃▃  92%
-5h  ▃▃▃▃▃▃▃▃▃▃  37%  7d    ▃▃▃▃▃▃▃▃▃▃  17%
-Opus 5.5 high · cache 52m left · $0.42 · Σ 1.4M tok · Clawd: warm · hide
+hide ctx ▃▃▃▃▃▃▃▃▃▃  23%  cache ▃▃▃▃▃▃▃▃▃▃  92%
+     5h  ▃▃▃▃▃▃▃▃▃▃  37%  7d    ▃▃▃▃▃▃▃▃▃▃  17%
+     Opus 5.5 high · cache 52m left · $0.42 · Σ 1.4M tok · Clawd: warm
 ```
 
 | Строка | Что показывает |

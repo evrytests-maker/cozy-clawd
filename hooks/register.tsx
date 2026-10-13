@@ -46,6 +46,8 @@ const GUARD_CHIP = '#ff8f5a'
 const BAR_PX = 8
 const BAR_H = 16
 const BAR_T = 6
+// The gutter `hide` stands in, in cells.
+const FOLD_W = 5
 
 // Bar colours by level: green → amber → red for load, the reverse for the cache.
 const EMPTY = '#4b4f58'
@@ -596,15 +598,17 @@ export const register: Register = on => {
       <Box flexDirection="row" justifyContent="flex-start">
         <Box flexDirection="column" alignItems="flex-start" marginRight={1}>
           <Box flexDirection="row">
+            {/* Top left, where the folded line's `show` stands; the rows below keep its gutter. */}
+            <Box width={FOLD_W}>{keep('fold', () => <Button key="fold" plain dimColor onPress={fold(true)}>hide</Button>)}</Box>
             {row(top)}
           </Box>
           <Box flexDirection="row">
+            <Box width={FOLD_W} />
             {bottom.length ? row(bottom) : <Text> </Text>}
           </Box>
           <Box flexDirection="row">
+            <Box width={FOLD_W} />
             {info}
-            <Text dimColor> · </Text>
-            {keep('fold', () => <Button key="fold" plain dimColor onPress={fold(true)}>hide</Button>)}
           </Box>
         </Box>
         {Svg ? (
