@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Guard, Limit, Snap } from '../types'
+import type { Guard, Limit, Snap, Tokens } from '../types'
 import { BODY_RIGHT, CLIPS, FIRE, clipGlyphs, clipSpan, draw, drawSvg, moveHearts, nextClip, shiftAt, spawnHearts } from './clawd'
 import type { Cell, Heart, Scene } from './clawd'
 import { COLS } from './clawd-anims'
@@ -9,6 +9,18 @@ import { COLS } from './clawd-anims'
 const snap = atom({ plugin: 'cozy-clawd', key: 'snap' } as const, null)
 const cache = atom({ plugin: 'cozy-clawd', key: 'cache' } as const, { lastHit: null, lastAt: null })
 const guard = atom({ plugin: 'cozy-clawd', key: 'guard' } as const, { mode: 'off', warms: 0 })
+const tokens = atom({ plugin: 'cozy-clawd', key: 'tokens' } as const, { input: 0, output: 0, cache: 0 })
+
+type Usage = { input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
+const countTokens = ($: EngineInterface, u: Usage) =>
+  update($, tokens, (x): Tokens => ({
+    input: x.input + u.input_tokens,
+    output: x.output + u.output_tokens,
+    cache: x.cache + u.cache_read_input_tokens + u.cache_creation_input_tokens,
+  }))
+
+// Folded, the band is one button and Clawd rests; kept across sessions in the store.
+let folded = false
 
 // Every word the band and its toasts say.
 export const t = {
@@ -30,6 +42,12 @@ export const GUARD_LEAD_MS = 5 * 60_000
 // Warming stops after this many pings in one idle stretch (~4h kept alive).
 export const MAX_WARMS = 3
 const GUARD_CHIP = '#ff8f5a'
+// A desktop's bar picture: CSS pixels per cell, the drawing's height and the bar's thickness.
+const BAR_PX = 8
+const BAR_H = 16
+const BAR_T = 6
+// The gutter `hide` stands in, in cells.
+const FOLD_W = 5
 
 // Bar colours by level: green → amber → red for load, the reverse for the cache.
 const EMPTY = '#4b4f58'
@@ -150,6 +168,7 @@ async function runGuard($: EngineInterface) {
       await update($, guard, x => ({ ...x, warms: x.warms + 1 }))
       cacheLeftMin = CACHE_TTL_MS / 60_000
       const hit = r.usage.cache_read_input_tokens
+      await countTokens($, r.usage)
       $.ui.toast(t.warmed(Math.round(hit / 1000)))
     } else {
       await update($, guard, x => ({ ...x, warms: MAX_WARMS }))
@@ -231,7 +250,7 @@ let drawnAt = 0
 const UNDRAWN_TICKS = 30
 
 function animate($: EngineInterface, gen: number) {
-  if (gen !== loop) return
+  if (gen !== loop || folded) return
   tick += 1
   typingRate += ((typed * 1000) / Math.max(lastWait, FRAME_MS) - typingRate) * 0.15
   typed = 0
@@ -261,6 +280,28 @@ function start($: EngineInterface) {
   $.clock.every(15_000, () => void runGuard($))
 }
 
+// A click carries the press handle of the drawing the surface shows, and the host lets go
+// of a handle as soon as a drawing without that very element replaces it: every new
+// <Button> gets a new one. While Clawd animates (campfire, typing) the band redraws up to
+// MAX_FPS times a second, so a click on a freshly made Button was dropped nine times in ten.
+// A Button is therefore made once per look and handed back while it looks the same,
+// its handler made once too, so a reused Button never runs a stale one.
+let onClawd: (() => Promise<void>) | undefined
+const flips: Record<string, () => void> = {}
+// The Buttons each drawing (surface and instance) last carried, by what they show.
+const heldButtons: Record<string, Map<string, JSX.Element>> = {}
+
+// A click on Clawd switches the cache guard; switched on, he lights a campfire for a moment.
+async function press($: EngineInterface) {
+  const g = await update($, guard, (x): Guard => ({ ...x, mode: x.mode === 'warm' ? 'off' : 'warm' }))
+  const enable = g.mode === 'warm'
+  warmOn = enable
+  // Switched off, the fire goes out now rather than after its loop.
+  if (!enable && FIRE.includes(clip) && !warming) play('campfireOut')
+  reaction = enable && !FIRE.includes(clip) ? 'campfire' : null
+  kick($)
+}
+
 function hex(c: string) {
   return [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16))
 }
@@ -282,7 +323,8 @@ export function ramp(stops: [number, string][], t: number) {
 
 export type Run = { text: string; fg: string }
 
-// A thin line `width` cells long: '━' up to `p`% in `color`, '─' after; `shine` lights one cell.
+// A bar `width` cells long of '▃' (a touch thicker than a line): `color` up to `p`%, the dim
+// track after; `shine` lights one cell.
 export function lineBar(p: number, width: number, color: string, shine = -1): Run[] {
   const full = Math.max(0, Math.min(width, Math.round((Math.max(0, Math.min(100, p)) / 100) * width)))
   const runs: Run[] = []
@@ -292,8 +334,8 @@ export function lineBar(p: number, width: number, color: string, shine = -1): Ru
     if (last && last.fg === fg) last.text += text
     else runs.push({ text, fg })
   }
-  for (let i = 0; i < full; i++) push('━', i === shine ? mix(color, '#ffffff', 0.55) : color)
-  push('─'.repeat(width - full), EMPTY)
+  for (let i = 0; i < full; i++) push('▃', i === shine ? mix(color, '#ffffff', 0.55) : color)
+  push('▃'.repeat(width - full), EMPTY)
   return runs
 }
 
@@ -332,6 +374,7 @@ export const register: Register = on => {
 
   on('session.start', async ($, e, next) => {
     const result = await next(e)
+    folded = (await $.store.get('folded').catch(() => undefined)) === true
     await refresh($)
     start($)
     return result
@@ -374,6 +417,7 @@ export const register: Register = on => {
     }
     const result = await stream.result
     const u = result.usage
+    if (u) await countTokens($, u)
     // Main thread only; subagents keep caches of their own.
     if (u && e.agentId === undefined) {
       if (e.effort !== undefined) effortFor[baseModel(e.model)] = lastEffort = String(e.effort)
@@ -396,6 +440,7 @@ export const register: Register = on => {
     const s = await read($, snap)
     const c = await read($, cache)
     const g = await read($, guard)
+    const toks = await read($, tokens)
     warmOn = g.mode === 'warm'
     if (e.props.isWorking !== working) {
       // A finished turn earns a reaction: hearts for a warm cache, a sigh for a cold one.
@@ -418,45 +463,97 @@ export const register: Register = on => {
     const cols = e.props.bodyColumns
     const barWidth = cols >= 90 ? 10 : cols >= 70 ? 7 : 4
     const shimmer = working || warming ? tick % (barWidth + 4) : -1
-    // A click on Clawd switches the cache guard; switched on, he lights a campfire for a moment.
-    const press = async () => {
-      const enable = g.mode !== 'warm'
-      await update($, guard, (x): Guard => ({ ...x, mode: enable ? 'warm' : 'off' }))
-      warmOn = enable
-      // Switched off, the fire goes out now rather than after its loop.
-      if (!enable && FIRE.includes(clip) && !warming) play('campfireOut')
-      reaction = enable && !FIRE.includes(clip) ? 'campfire' : null
-      kick($)
+    onClawd ??= () => press($)
+    // A meter's percent switches to its detail and back.
+    const flipOf = (k: string) =>
+      (flips[k] ??= () => {
+        flipped[k] = !flipped[k]
+        $.ui.invalidate('ui.render')
+      })
+    // Folds the band away, or opens it again; Clawd rests while it is folded.
+    const fold = (to: boolean) =>
+      (flips[to ? 'fold' : 'unfold'] ??= () => {
+        folded = to
+        void $.store.set('folded', to).catch(() => {})
+        if (!to) kick($)
+        $.ui.invalidate('ui.render')
+      })
+    const drawing = `${e.surface}|${e.requestId}`
+    const held = heldButtons[drawing] ?? new Map<string, JSX.Element>()
+    const kept = new Map<string, JSX.Element>()
+    const keep = (look: string, make: () => JSX.Element) => {
+      const b = kept.get(look) ?? held.get(look) ?? make()
+      kept.set(look, b)
+      return b
     }
     const els = $.ui.resolve(e)
     const { Box, Text, Button } = els
     const Svg = e.surface !== 'terminal' && 'Svg' in els ? els.Svg : undefined
     const desktop = Svg !== undefined
 
-    // A meter's percent; given `detail`, a switch that shows the detail in its place, and back.
-    const meter = (label: string, k: string, stops: [number, string][], empty = false, detail?: string) => {
-      const p = empty ? 0 : v(k)
-      const color = empty ? EMPTY : ramp(stops, p / 100)
-      const value = empty ? pct(null) : pct(p)
+    if (folded) {
+      // Words, not arrows: a desktop's font draws the small triangles as a dot.
+      const unfold = keep('unfold', () => <Button key="unfold" plain dimColor onPress={fold(false)}>show</Button>)
+      // The light look: the limit nearest to full, the spend, the cache hit.
+      const nearest = limits.reduce<Limit | undefined>((a, l) => (a && a.percent >= l.percent ? a : l), undefined)
+      const lite = [
+        ...(nearest ? [<Text color={ramp(LOAD_RAMP, nearest.percent / 100)}>{`${t.limits[nearest.kind] ?? nearest.kind} ${Math.round(nearest.percent)}%`}</Text>] : []),
+        ...(s?.usd !== undefined && s.usd >= 0.005 ? [<Text color="#5fb8ff">{`$${s.usd.toFixed(2)}`}</Text>] : []),
+        ...(c.lastHit !== null ? [<Text color={ramp(CACHE_RAMP, c.lastHit / 100)}>{`${t.cache} ${Math.round(c.lastHit)}%`}</Text>] : []),
+      ].flatMap(x => [<Text dimColor> · </Text>, x])
+      heldButtons[drawing] = kept
+      return <Box flexDirection="row">{unfold}{lite}</Box>
+    }
+
+    // A meter: its label, bar and percent; given `detail`, the percent is a switch that
+    // shows the detail in its place, and back.
+    type Meter = { label: string; k: string; stops: [number, string][]; empty: boolean; detail?: string }
+    const valueOf = (m: Meter) => (m.detail && flipped[m.k] ? ` ${m.detail}` : pct(m.empty ? null : v(m.k)))
+    // A bar: '▃' cells in the terminal; a desktop's font draws that glyph wider than a cell,
+    // so there it is a picture of BAR_PX per cell, every bar the same width.
+    const bar = (runs: Run[], alt: string) => {
+      if (!Svg) return runs.map(r => <Text color={r.fg}>{r.text}</Text>)
+      let x = 0
+      const rects = runs.map(r => {
+        const w = r.text.length * BAR_PX
+        x += w
+        return `<rect x="${x - w}" y="${(BAR_H - BAR_T) / 2}" width="${w}" height="${BAR_T}" fill="${r.fg}"/>`
+      })
+      return <Svg source={`<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${BAR_H}">${rects.join('')}</svg>`} alt={alt} width={x} height={BAR_H} />
+    }
+    // Label and value sit in boxes a fixed number of cells wide, which every surface
+    // measures in its monospace metric, so the columns line up whatever the font.
+    const meter = (m: Meter, labelW: number, valueW: number) => {
+      const p = m.empty ? 0 : v(m.k)
+      const color = m.empty ? EMPTY : ramp(m.stops, p / 100)
+      const text = valueOf(m)
       return [
-        <Text dimColor>{label} </Text>,
-        ...lineBar(p, barWidth, color, shimmer).map(r => <Text color={r.fg}>{r.text}</Text>),
-        detail ? (
-          <Button key={k} plain onPress={() => {
-            flipped[k] = !flipped[k]
-            $.ui.invalidate('ui.render')
-          }}>
-            <Text color={color} bold>{flipped[k] ? ` ${detail}` : value}</Text>
-          </Button>
-        ) : (
-          <Text color={color} bold>{value}</Text>
-        ),
+        <Box width={labelW + 1}><Text dimColor>{m.label}</Text></Box>,
+        bar(lineBar(p, barWidth, color, shimmer), `${m.label} ${Math.round(p)}%`),
+        <Box width={valueW}>{m.detail
+          ? keep(`${m.k}|${color}|${text}`, () => (
+              <Button key={m.k} plain onPress={flipOf(m.k)}>
+                <Text color={color} bold>{text}</Text>
+              </Button>
+            ))
+          : <Text color={color} bold>{text}</Text>}</Box>,
       ]
     }
-    const limit = (l: { kind: string; resetsAt?: string }, i: number) => {
-      const resets = s ? resetsIn(l.resetsAt, s.at).replace(' ', '') : ''
-      return meter(t.limits[l.kind] ?? l.kind, `lim${i}`, LOAD_RAMP, false, resets || undefined)
-    }
+    const top: Meter[] = [
+      { label: 'ctx', k: 'ctx', stops: LOAD_RAMP, empty: false, detail: s ? `${tok(s.contextTokens)}/${tok(s.contextWindow)}` : undefined },
+      { label: t.cache, k: 'hit', stops: CACHE_RAMP, empty: c.lastHit === null },
+    ]
+    const bottom: Meter[] = limits.map((l, i) => ({
+      label: t.limits[l.kind] ?? l.kind,
+      k: `lim${i}`,
+      stops: LOAD_RAMP,
+      empty: false,
+      detail: (s ? resetsIn(l.resetsAt, s.at).replace(' ', '') : '') || undefined,
+    }))
+    // Both rows share each column's label and value widths, so the bars stand in a grid.
+    const widest = (i: number, f: (m: Meter) => number) => Math.max(...[top[i], bottom[i]].map(m => (m ? f(m) : 0)))
+    const row = (ms: Meter[]) => ms.map((m, i) => [i ? <Box width={2} /> : null, ...meter(m, widest(i, x => x.label.length), widest(i, x => valueOf(x).length))])
+    const all = toks.input + toks.output + toks.cache
 
     const left = cacheLeftMin
     const sep = <Text dimColor> · </Text>
@@ -468,10 +565,19 @@ export const register: Register = on => {
         ? []
         : [...(s?.model || s?.effort ? [sep] : []), <Text color={left === 0 ? 'error' : left <= 5 ? 'warning' : undefined} dimColor={left > 5}>{left ? t.cacheLeft(left) : t.cacheAsleep}</Text>]),
       ...(s?.usd !== undefined && s.usd >= 0.005 ? [sep, <Text color="#5fb8ff" bold>{`$${s.usd.toFixed(2)}`}</Text>] : []),
+      // Every token the chat used; a press splits it into input, output and cache, and back.
+      ...(all
+        ? [sep, (text => keep(`tok|${text}`, () => <Button key="tok" plain onPress={flipOf('tok')}><Text color="#a9b1d6">{text}</Text></Button>))(
+            flipped.tok ? `in ${tok(toks.input)} · out ${tok(toks.output)} · cache ${tok(toks.cache)}` : `Σ ${tok(all)} tok`,
+          )]
+        : []),
       // A desktop cannot press Clawd (see below): the guard gets a button of its own there.
-      ...(desktop
-        ? [sep, <Button key="guard" plain onPress={press}>{g.mode === 'warm' ? t.guard : t.guardOff}</Button>]
-        : g.mode === 'warm' ? [sep, <Text color={GUARD_CHIP}>{t.guard}</Text>] : []),
+      // In the terminal it shows while warm: a still target to switch it off by, as Clawd moves.
+      ...(desktop || g.mode === 'warm'
+        ? [sep, g.mode === 'warm'
+            ? keep('guard|warm', () => <Button key="guard" plain onPress={onClawd}><Text color={GUARD_CHIP}>{t.guard}</Text></Button>)
+            : keep('guard|off', () => <Button key="guard" plain onPress={onClawd}>{t.guardOff}</Button>)]
+        : []),
     ]
 
     // Glyphs beside the sprite: z's over a meditating Clawd, a drop under load.
@@ -486,31 +592,39 @@ export const register: Register = on => {
     const shift = shiftAt(CLIPS[clip]!, played)
     const span = clipSpan(clip)
 
+    heldButtons[drawing] = kept
+    // Left-aligned: the bars start at the edge and stay put whatever Clawd's clip spans.
     return (
-      <Box flexDirection="row" justifyContent="flex-end">
-        <Box flexDirection="column" alignItems="flex-end" marginRight={1}>
+      <Box flexDirection="row" justifyContent="flex-start">
+        <Box flexDirection="column" alignItems="flex-start" marginRight={1}>
           <Box flexDirection="row">
-            {meter('ctx', 'ctx', LOAD_RAMP, false, s ? `${tok(s.contextTokens)}/${tok(s.contextWindow)}` : undefined)}
-            <Text>  </Text>
-            {meter(t.cache, 'hit', CACHE_RAMP, c.lastHit === null)}
+            {/* Top left, where the folded line's `show` stands; the rows below keep its gutter. */}
+            <Box width={FOLD_W}>{keep('fold', () => <Button key="fold" plain dimColor onPress={fold(true)}>hide</Button>)}</Box>
+            {row(top)}
           </Box>
           <Box flexDirection="row">
-            {limits.length ? limits.map((l, i) => [i ? <Text>  </Text> : null, ...limit(l, i)]) : <Text> </Text>}
+            <Box width={FOLD_W} />
+            {bottom.length ? row(bottom) : <Text> </Text>}
           </Box>
-          <Box flexDirection="row">{info}</Box>
+          <Box flexDirection="row">
+            <Box width={FOLD_W} />
+            {info}
+          </Box>
         </Box>
         {Svg ? (
           // A desktop draws text in its own font and Buttons natively: Clawd is a picture there.
           (pic => <Svg source={pic.svg} alt="Clawd" width={pic.width} height={pic.height} />)(drawSvg(clip, frameAt, hearts, glyphs, shift, span))
         ) : (
           <Box flexDirection="column">
-            {draw(clip, frameAt, hearts, glyphs, shift, span).map((runs, i) => (
-              <Button key={`clawd${i}`} plain onPress={press}>
-                {runs.map(r => (
-                  <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>
-                ))}
-              </Button>
-            ))}
+            {draw(clip, frameAt, hearts, glyphs, shift, span).map((runs, i) =>
+              keep(`clawd${i}|${JSON.stringify(runs)}`, () => (
+                <Button key={`clawd${i}`} plain onPress={onClawd}>
+                  {runs.map(r => (
+                    <Text color={r.fg} backgroundColor={r.bg}>{r.text}</Text>
+                  ))}
+                </Button>
+              )),
+            )}
           </Box>
         )}
       </Box>

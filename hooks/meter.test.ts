@@ -73,8 +73,9 @@ test('clawd clips follow the session, sprites draw as three rows', () => {
   for (let i = 0; i < 80; i++) h = moveHearts(h)
   expect(h.length).toBe(0)
   expect(draw('idle', 0, [{ x: COLS - 2, y: 2 }]).flat().some(c => c.text === '♥')).toBe(true)
-  // 50% of 4 cells: two thick, two thin; the shine lights one cell.
-  expect(lineBar(50, 4, '#000000').map(r => r.text).join('')).toBe('━━──')
+  // 50% of 4 cells: two filled, two of the dim track, one glyph; the shine lights one cell.
+  expect(lineBar(50, 4, '#000000').map(r => r.text)).toEqual(['▃▃', '▃▃'])
+  expect(lineBar(50, 4, '#000000')[0]!.fg).toBe('#000000')
   expect(lineBar(50, 4, '#000000', 1).length).toBe(3)
   // Percents keep a space from the bar at any value, 100% included.
   expect(pct(100)).toBe(' 100%')
@@ -219,8 +220,8 @@ test('band labels, model and effort', async ($, on) => {
   })
   for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1, effort: 'medium' }));
   const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface: 'terminal', ...band(false) })
-  expect(await ui.find({ type: 'Text', text: 'cache ' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: '5h ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'cache' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '5h' })).toBeDefined()
   await ui.press({ key: 'lim0' })
   expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 3h26m')
   expect(await ui.find({ type: 'Text', text: 'cache 60m left' })).toBeDefined()
@@ -270,8 +271,8 @@ test('the last limits seen are shown before a session has its own', async ($, on
   on('session.measure', (_$, e) => ({ changed: e.changed }))
   await $.session.measure({ context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: limits, changed: ['rateLimits'] })
   const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface: 'terminal', ...band(false) })
-  expect(await ui.find({ type: 'Text', text: '5h ' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: '7d ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '5h' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '7d' })).toBeDefined()
   await ui.press({ key: 'lim0' })
   expect((await ui.find({ key: 'lim0' }))?.text).toBe(' 2h10m')
   await ui.unmount()
@@ -311,11 +312,17 @@ test('typing speeds up with the model, in the terminal and on the desktop', asyn
       usage: { model: 'm', input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 9 },
     }
   })
+  // Clawd's picture on the desktop: the Svg whose alt names him (the bars are pictures too).
+  const clawdSvg = (n: unknown): string => {
+    if (Array.isArray(n)) return n.map(clawdSvg).join('')
+    const x = n as { type?: string; props?: { alt?: string; source?: string }; children?: unknown } | null
+    return !x || typeof x !== 'object' ? '' : x.type === 'Svg' && x.props?.alt === 'Clawd' ? x.props.source ?? '' : clawdSvg(x.children)
+  }
   // The keys' clicks: a cell of their own in the terminal, a glyph in the desktop's picture.
   const clicks = async (ui: { find: (q: { type?: string; text?: RegExp }) => Promise<{ props: Record<string, unknown> } | undefined> }, surface: string) =>
     surface === 'terminal'
       ? (await ui.find({ type: 'Text', text: /^[˙·]$/ })) !== undefined
-      : /[˙·]<\/text>/.test(String((await ui.find({ type: 'Svg' }))?.props.source ?? ''))
+      : /[˙·]<\/text>/.test(clawdSvg(await $.ui.render({ component: 'AbovePrompt', props: band(true).props, surface: 'desktop' })))
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(true) })
     await clock.advance(3000) // the laptop goes down; nothing streams yet, so no clicks
@@ -334,5 +341,110 @@ test('typing speeds up with the model, in the terminal and on the desktop', asyn
     await clock.advance(3000)
     expect(await after.find({ key: 'ctx' })).toBeDefined()
     await after.unmount()
+  }
+})
+
+test('the guard keeps its press handle while Clawd animates, so a click on a shown drawing lands', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
+  on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
+  // The press handles a drawing carries, by key: the host drops a click whose handle the band has since let go of.
+  const handles = (n: unknown, out: Record<string, number> = {}): Record<string, number> => {
+    if (Array.isArray(n)) n.forEach(c => handles(c, out))
+    else if (n && typeof n === 'object') {
+      const x = n as { props?: { key?: string }; press?: { handle: number }; children?: unknown }
+      if (x.press && x.props?.key) out[x.props.key] = x.press.handle
+      handles(x.children, out)
+    }
+    return out
+  }
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const draw = async () => handles(await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface }))
+    const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
+    // Warm: Clawd sits at the campfire, redrawing many times a second.
+    await ui.press({ key: surface === 'desktop' ? 'guard' : 'clawd0' })
+    const first = await draw()
+    for (let i = 0; i < 5; i++) {
+      await clock.advance(100)
+      expect((await draw()).guard).toBe(first.guard)
+    }
+    // The guard label switches warm off on either surface.
+    await ui.press({ key: 'guard' })
+    expect(await ui.find({ text: 'Clawd: warm' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('bars stand in a grid, the chat tokens add up, and the band folds away', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-12T10:00:00Z') })
+  on('session.usage', () => ({
+    value: {
+      startedAt: 0,
+      context: { tokens: 128_000, window: 512_000, percent: 25 },
+      rateLimits: [
+        { kind: 'five_hour', percentUsed: 34, resetsAt: '2026-10-12T12:10:00Z' },
+        { kind: 'seven_day', percentUsed: 12, resetsAt: '2026-10-16T10:00:00Z' },
+      ],
+    },
+  }))
+  on('turn.step', async function* (_$, e) {
+    return {
+      turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: 'end_turn' as const,
+      usage: { model: 'm', input_tokens: 1000, output_tokens: 500, cache_read_input_tokens: 9000, cache_creation_input_tokens: 500 },
+    }
+  })
+  // Every response counts, a subagent's too.
+  for (const agentId of [undefined, 'sub']) {
+    for await (const _ of $.turn.step({ turnId: 't', index: 0, model: 'm', messageCount: 1, agentId }));
+  }
+  // Each row's text, and where its bars start.
+  const text = (n: unknown): string =>
+    Array.isArray(n) ? n.map(text).join('')
+    : n && typeof n === 'object' ? ((n as { type?: string; props?: { label?: string } }).type === 'Button' && !(n as { children?: unknown[] }).children?.length ? (n as { props: { label: string } }).props.label : text((n as { children?: unknown }).children))
+    : typeof n === 'string' ? n : ''
+  type Node = { type?: string; props?: { width?: number }; children?: unknown }
+  const rows = async (surface: 'terminal' | 'desktop') => {
+    const tree = (await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface })) as unknown as { children: { children: Node[] }[] }
+    return tree.children[0]!.children
+  }
+  // Where a row's bars start, in cells: a sized box counts its width, a text its length,
+  // a desktop's bar picture its pixels over 8 a cell.
+  const bars = (row: Node) => {
+    const starts: number[] = []
+    let x = 0
+    let inBar = false
+    for (const n of (row.children as Node[]).flat(3) as Node[]) {
+      const isBar = n.type === 'Svg' || (n.type === 'Text' && /^▃+$/.test(text(n)))
+      if (isBar && !inBar) starts.push(x)
+      inBar = isBar
+      x += n.type === 'Svg' ? n.props!.width! / 8 : n.props?.width ?? text(n).length
+    }
+    return starts
+  }
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })
+    await clock.advance(3000)
+    let [top, bottom] = await rows(surface)
+    expect(bars(top!).length).toBe(2)
+    expect(bars(top!)).toEqual(bars(bottom!))
+    // A percent switched to its detail widens its whole column: the bars stay in line.
+    await ui.press({ key: 'ctx' })
+    ;[top, bottom] = await rows(surface)
+    expect(text(top)).toContain('128k/512k')
+    expect(bars(top!)).toEqual(bars(bottom!))
+    await ui.press({ key: 'ctx' })
+    // Two responses of 11k each; a press splits the total, and back.
+    expect((await ui.find({ key: 'tok' }))?.text).toBe('Σ 22k tok')
+    await ui.press({ key: 'tok' })
+    expect((await ui.find({ key: 'tok' }))?.text).toBe('in 2k · out 1k · cache 19k')
+    await ui.press({ key: 'tok' })
+    // Folded, the band is one button; unfolded, it is back.
+    await ui.press({ key: 'fold' })
+    expect(await ui.find({ key: 'ctx' })).toBeUndefined()
+    expect((await ui.find({ key: 'unfold' }))?.text).toBe('show')
+    // Folded, it still tells the limit nearest to full and the cache hit (no spend in this session).
+    expect(text(await $.ui.render({ component: 'AbovePrompt', props: band(false).props, surface }))).toBe('show · 5h 34% · cache 86%')
+    await ui.press({ key: 'unfold' })
+    expect(await ui.find({ key: 'ctx' })).toBeDefined()
+    await ui.unmount()
   }
 })
