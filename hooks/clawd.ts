@@ -1,5 +1,5 @@
 // Clawd's player: which animation runs when, hearts, and the half-block drawing.
-import { COLS, PALETTE, SPRITES } from './clawd-anims'
+import { COLS, LAPTOP_ART, LAPTOP_FRAMES, PALETTE, SPRITES } from './clawd-anims'
 
 // `times` replays the loop that often unless something holds it; `shift` walks Clawd
 // that many cells left and back over the clip; `room` is the sprite whose columns it
@@ -21,12 +21,7 @@ export const CLIPS: Record<string, Clip> = {
   dizzy: { sprite: 'Dizzy', from: 0, to: 40, fps: 12 },
   facepalm: { sprite: 'Facepalm', from: 2, to: 33, fps: 12 },
   meditate: { sprite: 'Meditating', from: 2, to: 59, fps: 12 },
-  laptop: { sprite: 'Laptop', from: 2, to: 16, fps: 12 },
-  // Typing, one clip a speed: waiting, calm clicks, fast, and fast with hard strikes.
-  type0: { sprite: 'LaptopType', from: 0, to: 7, fps: 8, room: 'Laptop' },
-  type1: { sprite: 'Laptop', from: 17, to: 33, fps: 12 },
-  type2: { sprite: 'LaptopType', from: 11, to: 13, fps: 16, room: 'Laptop' },
-  type3: { sprite: 'LaptopType', from: 14, to: 23, fps: 16, room: 'Laptop' },
+  laptop: { sprite: 'Laptop', from: 2, to: 33, loop: [17, 33], fps: 12 },
   laptopOut: { sprite: 'Laptop', from: 34, to: 42, fps: 16 },
   crab: { sprite: 'CrabWalking', from: 4, to: 11, loop: [4, 11], times: 5, fps: 16, shift: 6 },
   walk: { sprite: 'Walking', from: 4, to: 9, loop: [5, 9], times: 6, fps: 12, shift: 5 },
@@ -73,26 +68,20 @@ export type Scene = {
   sleepy: boolean
   sweaty: boolean
   reaction: string | null
-  // How fast the model writes, 0 (waiting on it) to 3: which typing clip plays.
-  typing: number
 }
 
 // The clips at the campfire: sitting down, sitting, tossing a log in.
 export const FIRE = ['campfire', 'campfireSit', 'campfireLog']
 
-// Clawd at the laptop: setting it down, then typing at one of four speeds.
-const TYPING = ['type0', 'type1', 'type2', 'type3']
-const AT_LAPTOP = ['laptop', ...TYPING]
-
 // The clip after `current` ends (or is interrupted by work starting).
 export function nextClip(current: string, s: Scene, rnd: number): string {
   if (s.compacting) return 'compact'
   if (current === 'compact') return 'compactOut'
-  if (s.busy === 'turn') return AT_LAPTOP.includes(current) ? TYPING[Math.max(0, Math.min(3, s.typing))]! : 'laptop'
+  if (s.busy === 'turn') return 'laptop'
   // At the fire he stays at the fire while warm mode is on (or the guard is warming).
   if (FIRE.includes(current)) return s.busy === 'guard' || s.warm ? 'campfireSit' : 'campfireOut'
   if (s.busy === 'guard') return 'campfire'
-  if (AT_LAPTOP.includes(current)) return 'laptopOut'
+  if (current === 'laptop') return 'laptopOut'
   if (s.reaction) return s.reaction
   if (current !== 'idle') return 'idle'
   if (s.warm) return 'campfire'
@@ -199,8 +188,6 @@ export function clipGlyphs(clip: string, frame: number, tick: number): Record<st
     g['2,6'] = { text: tick % 2 ? '·' : '˙', fg: '#8b8b8b' }
     g['2,17'] = { text: tick % 2 ? '˙' : '·', fg: '#8b8b8b' }
   }
-  // Typing flat out, the keys click.
-  if (clip === 'type3') g[`1,${3 + (tick % 2)}`] = { text: tick % 3 ? '˙' : '·', fg: '#cfcabb' }
   if (clip === 'compactOut' && frame >= 2 && frame <= 6) g[`1,${frame % 2 ? 1 : 4}`] = { text: SPARKS[frame % SPARKS.length]!, fg: '#ffd866' }
   if (clip === 'spark') {
     const spots = [[0, 5], [0, 19], [1, 4], [1, 18], [0, 7], [0, 16]]
@@ -221,7 +208,11 @@ export function drawSvg(clip: string, frame: number, hearts: Heart[], glyphs: Re
   const height = rows.length * PX
   const parts: string[] = []
   const filled = new Set<string>()
-  rows.forEach((r, y) => {
+  if (CLIPS[clip]?.sprite === 'Laptop') {
+    // Keep the original sprite detail on Desktop; the terminal has just three rows.
+    const [lo, hi] = clipSpan(clip)
+    parts.push(`<svg x="${(lo - span[0]) * PX}" width="${(hi - lo - 1) * PX}" height="${height}" viewBox="0 0 34 23" shape-rendering="crispEdges">${LAPTOP_ART[LAPTOP_FRAMES[frame]!]}</svg>`)
+  } else rows.forEach((r, y) => {
     ;[...(r.slice(shift) + '.'.repeat(shift))].forEach((ch, x) => {
       if (ch === '.' || x < span[0] || x > span[1]) return
       filled.add(`${Math.floor(y / 2)},${x}`)

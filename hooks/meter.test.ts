@@ -13,15 +13,9 @@ const band = (isWorking: boolean) =>
 test('clawd clips follow the session, sprites draw as three rows', () => {
   const calm = { busy: null, warm: false, compacting: false, sleepy: false, sweaty: false, reaction: null, typing: 0 }
   expect(nextClip('idle', { ...calm, busy: 'turn' }, 0)).toBe('laptop')
-  // Laptop down, he types as fast as the model writes, and switches as it speeds up.
-  expect(nextClip('laptop', { ...calm, busy: 'turn', typing: 2 }, 0)).toBe('type2')
-  expect(nextClip('type2', { ...calm, busy: 'turn', typing: 3 }, 0)).toBe('type3')
-  expect(nextClip('type3', { ...calm, busy: 'turn' }, 0)).toBe('type0')
-  expect(nextClip('type1', calm, 0)).toBe('laptopOut')
+  expect(nextClip('laptop', { ...calm, busy: 'turn' }, 0)).toBe('laptop')
   expect(nextClip('laptop', calm, 0)).toBe('laptopOut')
-  // All of his typing takes the laptop's columns, so the band does not jump as he speeds up.
-  for (const k of ['type0', 'type1', 'type2', 'type3']) expect(clipSpan(k)).toEqual(clipSpan('laptop'))
-  expect(Object.keys(clipGlyphs('type3', 15, 0)).length).toBe(1)
+  expect(clipSpan('laptopOut')).toEqual(clipSpan('laptop'))
   expect(nextClip('laptopOut', { ...calm, reaction: 'dance' }, 0)).toBe('dance')
   expect(nextClip('dance', calm, 0)).toBe('idle')
   expect(nextClip('idle', { ...calm, sleepy: true }, 0)).toBe('meditate')
@@ -278,7 +272,7 @@ test('the last limits seen are shown before a session has its own', async ($, on
   await ui.unmount()
 })
 
-test('counting how fast the model writes passes its stream on untouched', async ($, on) => {
+test('the meter passes the model stream on untouched', async ($, on) => {
   mock.clock(on, { now: 0 })
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
   const sent = [
@@ -302,7 +296,7 @@ test('counting how fast the model writes passes its stream on untouched', async 
   expect(r.value?.answer).toBe('Hello')
 })
 
-test('typing speeds up with the model, in the terminal and on the desktop', async ($, on) => {
+test('the classic typing loop keeps playing during streaming on both surfaces', async ($, on) => {
   const clock = mock.clock(on, { now: 0 })
   on('session.usage', () => ({ value: { startedAt: 0, context: { tokens: 1000, window: 200_000, percent: 1 }, rateLimits: [] } }))
   on('turn.step', async function* (_$, e) {
@@ -327,14 +321,14 @@ test('typing speeds up with the model, in the terminal and on the desktop', asyn
     const ui = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(true) })
     await clock.advance(3000) // the laptop goes down; nothing streams yet, so no clicks
     expect(await clicks(ui, surface)).toBe(false)
-    // About 40 characters every tenth of a second: flat out.
+    // A fast stream must not switch to the custom hard-strike animation.
     let clicked = false
     for (let i = 0; i < 40; i++) {
       for await (const _ of $.turn.step({ turnId: 't', index: i, model: 'm', messageCount: 1 }));
       await clock.advance(100)
       clicked ||= await clicks(ui, surface)
     }
-    expect(clicked).toBe(true)
+    expect(clicked).toBe(false)
     await ui.unmount()
     // The turn ends: he puts the laptop away and the band still draws.
     const after = await $.ui.mount({ plugin: 'cozy-clawd', surface, ...band(false) })

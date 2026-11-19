@@ -65,11 +65,6 @@ let warmOn = false
 let compacting = false
 // Tool calls that failed in the current turn: a facepalm afterwards.
 let toolErrors = 0
-// How fast the model writes: characters streamed since the last frame, and their rate
-// (per second) smoothed over about half a second. TYPING_AT: the rates of the faster clips.
-let typed = 0
-let typingRate = 0
-const TYPING_AT = [15, 100, 250]
 // The effort the main thread's requests asked for, per model; settings until the first one.
 const effortFor: Record<string, string> = {}
 let lastEffort: string | undefined
@@ -193,8 +188,7 @@ function ease() {
 
 function scene(): Scene {
   const sweaty = (target.ctx ?? 0) >= 85 || (target.lim0 ?? 0) >= 85
-  const typing = TYPING_AT.filter(r => typingRate >= r).length
-  return { busy: working ? 'turn' : warming ? 'guard' : null, warm: warmOn, compacting, sleepy: cacheLeftMin === 0, sweaty, reaction, typing }
+  return { busy: working ? 'turn' : warming ? 'guard' : null, warm: warmOn, compacting, sleepy: cacheLeftMin === 0, sweaty, reaction }
 }
 
 function play(name: string) {
@@ -220,7 +214,7 @@ const FRAME_MS = Math.round(1000 / MAX_FPS)
 function step(): number {
   const c = CLIPS[clip]
   const atFire = (clip === 'campfire' || clip === 'campfireSit') && (warming || warmOn)
-  const holds = atFire || (clip === 'compact' && compacting)
+  const holds = atFire || (clip === 'compact' && compacting) || (clip === 'laptop' && working)
   played += 1
   if (clip === 'idle') {
     idleLeft -= lastWait
@@ -252,8 +246,6 @@ const UNDRAWN_TICKS = 30
 function animate($: EngineInterface, gen: number) {
   if (gen !== loop || folded) return
   tick += 1
-  typingRate += ((typed * 1000) / Math.max(lastWait, FRAME_MS) - typingRate) * 0.15
-  typed = 0
   ease()
   const wait = step()
   $.ui.invalidate('ui.render')
@@ -408,13 +400,8 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('turn.step', async function* ($, e, next) {
-    // Everything the model writes, subagents' too, sets how fast Clawd types.
     const stream = next(e)
-    for await (const c of stream) {
-      if (c.kind === 'text' || c.kind === 'thinking') typed += c.text.length
-      else if (c.kind === 'input') typed += c.json.length
-      yield c
-    }
+    for await (const c of stream) yield c
     const result = await stream.result
     const u = result.usage
     if (u) await countTokens($, u)
@@ -448,8 +435,6 @@ export const register: Register = on => {
       if (working) {
         reaction = toolErrors > 0 ? 'facepalm' : c.lastHit === null ? 'excited' : c.lastHit >= 80 ? 'dance' : c.lastHit < 50 ? 'disappointed' : 'excited'
       } else toolErrors = 0
-      // A new turn starts typing from rest, not at the last turn's speed.
-      typed = typingRate = 0
       working = e.props.isWorking
       kick($)
     }
