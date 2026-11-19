@@ -24,7 +24,7 @@ export const CLIPS: Record<string, Clip> = {
   laptop: { sprite: 'Laptop', from: 2, to: 16, fps: 12 },
   // Typing, one clip a speed: waiting, calm clicks, fast, and fast with hard strikes.
   type0: { sprite: 'LaptopType', from: 0, to: 7, fps: 8, room: 'Laptop' },
-  type1: { sprite: 'LaptopType', from: 8, to: 10, fps: 10, room: 'Laptop' },
+  type1: { sprite: 'Laptop', from: 17, to: 33, fps: 12 },
   type2: { sprite: 'LaptopType', from: 11, to: 13, fps: 16, room: 'Laptop' },
   type3: { sprite: 'LaptopType', from: 14, to: 23, fps: 16, room: 'Laptop' },
   laptopOut: { sprite: 'Laptop', from: 34, to: 42, fps: 16 },
