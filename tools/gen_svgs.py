@@ -26,7 +26,7 @@ def frames(name):
 # name: (sprite, first frame, last frame, fps), the ranges the band plays.
 CLIPS = {
     'dance': ('DancingHappy', 4, 38, 12),
-    'laptop': ('LaptopType', 8, 23, 12),
+    'laptop': ('Laptop', 2, 33, 12),
     'campfire': ('Campfire', 9, 24, 11),
     'compact': ('Compact', 0, 38, 10),
     'crab': ('CrabWalking', 4, 11, 12),
@@ -132,11 +132,7 @@ def hero_svg():
 # The gallery, a section a time Clawd plays them in: (title, [(clip, when it plays)]).
 GALLERY = [
     ('While Claude answers', [
-        ('laptop', 'sets down the laptop'),
-        ('type0', 'waiting on the model, under 15 characters a second: a tap now and then'),
-        ('type1', 'calm clicks: 15 to 100 a second'),
-        ('type2', 'fast typing: 100 to 250 a second'),
-        ('type3', 'fast and hard, over 250 a second: strikes up to his face and over his head, keys clicking'),
+        ('laptop', 'opens the laptop once, then types until the answer is done'),
         ('laptopOut', 'packs the laptop away when the answer is done'),
     ]),
     ('When an answer is done', [

@@ -74,33 +74,18 @@ for i in range(15, 35):
         f[y][x] = gray
     out['Laptop'][i] = [''.join(r) for r in f]
 
-# Typing at four speeds, all on the laptop sprite's own stroke (on the keys, on the keys,
-# a pixel up): resting on the keys (low), a pixel up (mid), up by his face (high), over
-# his head (top). The clips in clawd.ts play TYPING's sheets in this order.
-body, hand = ('abcdefghijklmnopqrstuvwxyz'[palette.index(c)] for c in ('#d97757', '#be684d'))
-HAND = {'low': [(4, 5), (4, 6)], 'mid': [(3, 5), (3, 6)], 'high': [(2, 5), (2, 6)], 'top': [(1, 5), (1, 6)]}
-STROKE = ['low', 'low', 'mid']
-TYPING = [
-    ['low'] * 6 + ['mid', 'low'],              # waiting on the model: a tap now and then
-    STROKE,                                    # calm clicks
-    STROKE,                                    # fast: the same stroke, quicker
-    STROKE * 2 + ['high', 'low', 'top', 'low'],  # fast and hard: strikes to his face and over his head
-]
-
-
-def typing(pose):
-    f = [list(r) for r in out['Laptop'][17]]
-    for y, x in [(2, 5), (2, 6), (3, 5), (4, 4), (4, 5)]:
-        f[y][x] = '.'
-    f[3][6] = f[4][6] = body                   # his arm, up to the hand
-    if pose == 'top':
-        f[2][6] = body
-    for y, x in HAND[pose]:
-        f[y][x] = hand
-    return [''.join(r) for r in f]
-
-
-out['LaptopType'] = [typing(p) for sheet in TYPING for p in sheet]
+# SVG surfaces can show every original pixel. Store repeated poses only once.
+laptop = d['Laptop']
+poses = list(dict.fromkeys(laptop['frames']))
+def laptop_art(frame):
+    w = laptop['w']
+    paths = [[] for _ in laptop['palette']]
+    for y in range(laptop['h']):
+        row = frame[y*w:(y+1)*w][::-1]
+        for m in re.finditer(r'([0-9a-z])\1*', row):
+            n = len(m[0])
+            paths[int(m[1], 36)].append(f'M{m.start()} {y}h{n}v1h-{n}z')
+    return ''.join(f'<path fill="{color}" d="{"".join(path)}"/>' for color, path in zip(laptop['palette'], paths) if path)
 
 
 
@@ -248,6 +233,10 @@ lines = [
     '',
     f'export const COLS = {CW // 2}',
     'export const ROWS = 3',
+    f'export const LAPTOP_FRAMES = {json.dumps([poses.index(f) for f in laptop["frames"]])}',
+    'export const LAPTOP_ART = [',
+    *('  ' + json.dumps(laptop_art(pose)) + ',' for pose in poses),
+    ']',
     '',
     'export const SPRITES: Record<string, string[][]> = {',
 ]
